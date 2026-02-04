@@ -15,7 +15,7 @@ HTML_TEMPLATE = r"""
   <title>Komi AI: Ultimate Edition</title>
   <style>
     * { box-sizing: border-box; }
-    body { font-family: 'Segoe UI', sans-serif; background: #1e272e; color: #d2dae2; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    body { font-family: 'Segoe UI', sans-serif; background: #1e272e; color: #d2dae2; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; touch-action: none; }
 
     .container { display: flex; width: 100%; height: 100%; }
 
@@ -28,11 +28,12 @@ HTML_TEMPLATE = r"""
       box-shadow: 0 0 30px rgba(0,0,0,0.5); 
       border-radius: 4px; 
       cursor: crosshair; 
-      /* Kluczowe dla responsywności: */
       max-width: 100%;
       max-height: 100%;
       object-fit: contain;
-      touch-action: none; /* Blokuje przewijanie strony palcem po mapie */
+      /* Wyłączamy domyślne akcje dotykowe na canvasie */
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
     }
 
     h1 { color: #f1c40f; margin: 0 0 15px 0; font-size: 1.6rem; text-align: center; }
@@ -102,9 +103,11 @@ HTML_TEMPLATE = r"""
       .container { flex-direction: column; }
       .map-area { 
         flex: none; 
-        height: 55vh; /* Mapa zajmuje 55% ekranu */
+        height: 55vh; 
         width: 100%; 
         border-bottom: 2px solid #485460;
+        /* Dodatkowy padding żeby łatwiej było trafić w krawędzie */
+        padding: 0; 
       }
       .sidebar { 
         flex: 1; 
@@ -115,11 +118,10 @@ HTML_TEMPLATE = r"""
         box-shadow: 0 -5px 20px rgba(0,0,0,0.3);
       }
       h1 { font-size: 1.3rem; margin-bottom: 10px; }
-      .info { display: none; } /* Ukrywamy opis na mobile dla miejsca */
-      .hint { display: none; } /* Ukrywamy hinty na mobile */
+      .info { display: none; }
+      .hint { display: none; }
 
       canvas {
-        /* Na mobile canvas musi się zmieścić w viewporcie */
         width: 100%;
         height: 100%;
       }
@@ -204,6 +206,9 @@ HTML_TEMPLATE = r"""
   const TRAIL_MAX_MS = 1600;
   const ROUTE_W = 3.2;
   const OPP_DASH = [10, 9];
+
+  // ZWIEKSZONY ZASIEG KLIKNIECIA DLA MOBILE
+  const HIT_RADIUS = 55; // Piksele (w skali canvasu 1000x800)
 
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
@@ -295,11 +300,8 @@ HTML_TEMPLATE = r"""
   function setShow(key, val) {
     gameState.show[key] = !!val;
     if (!gameState.show[key]) gameState.runners[key].trail = [];
-
-    // UI update
     const btn = document.getElementById(key === 'user' ? 'btnToggleUser' : 'btnToggleCpu');
     btn.style.opacity = val ? '1' : '0.4';
-
     markStaticDirty();
   }
 
@@ -854,22 +856,33 @@ HTML_TEMPLATE = r"""
     }
   }
 
+  // --- LOGIKA MAGNESU (Smart Hitbox) ---
   function handleInput(clientX, clientY) {
     if (gameState.isLocked) return;
 
     const rect = canvas.getBoundingClientRect();
-    // Skalowanie: przeliczamy współrzędne ekranu na współrzędne canvasu (1000x800)
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
 
     const x = (clientX - rect.left) * scaleX;
     const y = (clientY - rect.top) * scaleY;
 
-    // Zwiększony hitbox dla palców (30px zamiast 20px)
-    const hitDist = 30; 
-    const city = gameState.cities.find(c => Math.hypot(c.x - x, c.y - y) < hitDist);
+    // Szukamy NAJBLIŻSZEGO miasta w zasięgu, a nie pierwszego trafionego
+    let bestCity = null;
+    let minDst = Infinity;
 
-    if (!city) return;
+    for (const c of gameState.cities) {
+        const dst = Math.hypot(c.x - x, c.y - y);
+        if (dst < minDst) {
+            minDst = dst;
+            bestCity = c;
+        }
+    }
+
+    // Jeśli najbliższe miasto jest w zasięgu "magnesu", wybierz je
+    if (!bestCity || minDst > HIT_RADIUS) return;
+    const city = bestCity;
+
     if (isUserRouteClosed()) return;
 
     const path = gameState.userPath;
@@ -904,9 +917,9 @@ HTML_TEMPLATE = r"""
     handleInput(e.clientX, e.clientY);
   });
 
-  // Dotyk (Mobile)
+  // Dotyk (Mobile) z preventDefault
   canvas.addEventListener('touchstart', e => {
-    e.preventDefault(); // Stop scrolling
+    e.preventDefault(); 
     const touch = e.touches[0];
     handleInput(touch.clientX, touch.clientY);
   }, {passive: false});
@@ -989,8 +1002,10 @@ HTML_TEMPLATE = r"""
 </html>
 """
 
-@app.route('/')
-def index():
+@app.route("/")
+def home():
+    # Ten print pokaże się w logach Railway, gdy ktoś wejdzie na stronę
+    print("--- KTOŚ ODWIEDZIŁ STRONĘ! ---", flush=True)
     return render_template_string(HTML_TEMPLATE)
 
 @app.route('/generate', methods=['POST'])
