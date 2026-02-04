@@ -19,21 +19,21 @@ HTML_TEMPLATE = r"""
 
     .container { display: flex; width: 100%; height: 100%; }
 
-    /* Domyślnie (Desktop) */
+    /* Desktop */
     .map-area { flex: 3; background: #000; display: flex; justify-content: center; align-items: center; position: relative; overflow: hidden; }
     .sidebar { flex: 1; background: #2f3640; padding: 20px; border-left: 2px solid #485460; overflow-y: auto; min-width: 340px; z-index: 10; }
 
-    canvas { 
-      background: #f5f6fa; 
-      box-shadow: 0 0 30px rgba(0,0,0,0.5); 
-      border-radius: 4px; 
-      cursor: crosshair; 
+    canvas {
+      background: #f5f6fa;
+      box-shadow: 0 0 30px rgba(0,0,0,0.5);
+      border-radius: 4px;
+      cursor: crosshair;
       max-width: 100%;
       max-height: 100%;
       object-fit: contain;
-      /* Wyłączamy domyślne akcje dotykowe na canvasie */
       touch-action: none;
       -webkit-tap-highlight-color: transparent;
+      user-select: none;
     }
 
     h1 { color: #f1c40f; margin: 0 0 15px 0; font-size: 1.6rem; text-align: center; }
@@ -41,30 +41,10 @@ HTML_TEMPLATE = r"""
     p.info { font-size: 0.85rem; color: #bdc3c7; margin-bottom: 15px; text-align: center; font-style: italic; }
 
     .legend-container { background: #1e272e; padding: 10px; border-radius: 6px; border: 1px solid #485460; font-size: 0.85rem; }
-    .legend-row { display: flex; align-items: center; margin-bottom: 8px; justify-content: space-between; gap: 10px; }
-    .legend-row:last-child { margin-bottom: 0; }
-
-    .l-box { width: 14px; height: 14px; border-radius: 3px; margin-right: 10px; border: 1px solid rgba(255,255,255,0.2); }
+    .l-box { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.2); }
     .bg-fast { background: rgba(46, 204, 113, 0.8); }
     .bg-slow { background: rgba(241, 196, 15, 0.8); }
     .bg-swamp { background: rgba(231, 76, 60, 0.8); }
-
-    .route-sample { width: 26px; height: 4px; border-radius: 2px; background: #fff; opacity: 0.9; }
-
-    .route-actions { display:flex; gap:6px; }
-    .icon-btn {
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.12);
-      color: #d2dae2;
-      padding: 6px 8px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: 700;
-      line-height: 1;
-      user-select: none;
-    }
-    .icon-btn:hover { background: rgba(255,255,255,0.10); }
-    .icon-btn.dim { opacity: 0.55; }
 
     .pill-btn {
       width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
@@ -72,12 +52,12 @@ HTML_TEMPLATE = r"""
     }
 
     input[type="number"] {
-      width: 100%; padding: 10px; background: #1e272e; border: 1px solid #485460; 
+      width: 100%; padding: 10px; background: #1e272e; border: 1px solid #485460;
       color: white; border-radius: 4px; font-weight: bold; text-align: center;
     }
 
     button {
-      width: 100%; padding: 12px; margin-top: 10px; border: none; border-radius: 4px; 
+      width: 100%; padding: 12px; margin-top: 10px; border: none; border-radius: 4px;
       font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 0.9rem;
     }
     button:disabled { background: #57606f !important; cursor: not-allowed; opacity: 0.75; }
@@ -86,45 +66,41 @@ HTML_TEMPLATE = r"""
     .btn-reset { background: #d63031; color: white; }
     .btn-anim { background: #34495e; color: white; }
     .btn-anim2 { background: #2c3e50; color: white; }
+
     .row-2btn { display: flex; gap: 10px; }
     .row-2btn button { width: 100%; }
 
     .stats-box { background: #1e272e; padding: 12px; border-radius: 6px; margin-bottom: 10px; border-left: 5px solid #bdc3c7; }
     .stat-val { font-size: 1.4rem; font-weight: bold; display: block; margin-top: 3px; }
-    .sub-stat { font-size: 0.8rem; color: #7f8c8d; display: block; }
     .hint { font-size: 0.78rem; color: #95a5a6; margin-top: 8px; line-height: 1.25rem; }
 
     #loading { display: none; color: #f1c40f; font-weight: bold; text-align: center; margin-top: 10px; animation: pulse 1.5s infinite; }
     @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
+
     #error-modal { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #c0392b; color: white; padding: 15px 30px; border-radius: 8px; z-index: 1000; text-align: center; font-weight: bold; }
 
-    /* --- MOBILE STYLES --- */
+    /* MOBILE */
     @media (max-width: 900px) {
       .container { flex-direction: column; }
-      .map-area { 
-        flex: none; 
-        height: 55vh; 
-        width: 100%; 
+      .map-area {
+        flex: none;
+        height: 55vh;
+        width: 100%;
         border-bottom: 2px solid #485460;
-        /* Dodatkowy padding żeby łatwiej było trafić w krawędzie */
-        padding: 0; 
+        padding: 0;
       }
-      .sidebar { 
-        flex: 1; 
-        width: 100%; 
-        min-width: 0; 
-        border-left: none; 
+      .sidebar {
+        flex: 1;
+        width: 100%;
+        min-width: 0;
+        border-left: none;
         padding: 15px;
         box-shadow: 0 -5px 20px rgba(0,0,0,0.3);
       }
       h1 { font-size: 1.3rem; margin-bottom: 10px; }
       .info { display: none; }
       .hint { display: none; }
-
-      canvas {
-        width: 100%;
-        height: 100%;
-      }
+      canvas { width: 100%; height: 100%; }
     }
   </style>
 </head>
@@ -144,13 +120,12 @@ HTML_TEMPLATE = r"""
     <div class="legend-container">
       <div style="font-weight:bold; margin-bottom:5px; color:#fff;">Teren:</div>
       <div style="display:flex; justify-content: space-between; gap:5px; font-size:0.75rem;">
-         <div style="display:flex;align-items:center;"><div class="l-box bg-fast" style="margin-right:4px;"></div>Szybko</div>
-         <div style="display:flex;align-items:center;"><div class="l-box bg-slow" style="margin-right:4px;"></div>Piasek</div>
-         <div style="display:flex;align-items:center;"><div class="l-box bg-swamp" style="margin-right:4px;"></div>Bagno</div>
+         <div style="display:flex;align-items:center; gap:6px;"><div class="l-box bg-fast"></div>Szybko</div>
+         <div style="display:flex;align-items:center; gap:6px;"><div class="l-box bg-slow"></div>Piasek</div>
+         <div style="display:flex;align-items:center; gap:6px;"><div class="l-box bg-swamp"></div>Bagno</div>
       </div>
 
       <div style="font-weight:bold; margin:12px 0 6px 0; color:#fff;">Widoczność:</div>
-
       <div style="display:flex; gap:10px;">
         <button class="pill-btn" id="btnToggleUser" style="margin-top:0; padding:6px; font-size:0.8rem; border-color:#2563eb; color:#2563eb;">🧍 User</button>
         <button class="pill-btn" id="btnToggleCpu" style="margin-top:0; padding:6px; font-size:0.8rem; border-color:#e84118; color:#e84118;">💻 AI</button>
@@ -207,8 +182,8 @@ HTML_TEMPLATE = r"""
   const ROUTE_W = 3.2;
   const OPP_DASH = [10, 9];
 
-  // ZWIEKSZONY ZASIEG KLIKNIECIA DLA MOBILE
-  const HIT_RADIUS = 55; // Piksele (w skali canvasu 1000x800)
+  // HITBOX w PIKSELACH EKRANU (działa super na mobile)
+  const HIT_RADIUS_PX = 44;
 
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
@@ -223,6 +198,15 @@ HTML_TEMPLATE = r"""
   let lastTs = null;
   let progAcc = 0;
   let overlapMode = "user";
+
+  // Stan pointera (mysz/dotyk)
+  const pointer = {
+    active: false,
+    id: null,
+    hoverId: null,
+    lastClientX: 0,
+    lastClientY: 0
+  };
 
   let gameState = {
     cities: [],
@@ -293,7 +277,8 @@ HTML_TEMPLATE = r"""
     const modes = ["user", "comp", "multiply"];
     const idx = modes.indexOf(overlapMode);
     overlapMode = modes[(idx + 1) % modes.length];
-    document.getElementById('btnOverlapMode').innerText = "Nakładanie: " + (overlapMode === 'multiply' ? 'Wspólne' : (overlapMode === 'comp' ? 'AI' : 'User'));
+    document.getElementById('btnOverlapMode').innerText =
+      "Nakładanie: " + (overlapMode === 'multiply' ? 'Wspólne' : (overlapMode === 'comp' ? 'AI' : 'User'));
     markStaticDirty();
   }
 
@@ -534,6 +519,22 @@ HTML_TEMPLATE = r"""
     ctx.restore();
   }
 
+  function drawHoverRing() {
+    if (pointer.hoverId === null || pointer.hoverId === undefined) return;
+    const c = gameState.cities[pointer.hoverId];
+    if (!c) return;
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.35)";
+    ctx.shadowBlur = 10;
+    ctx.globalAlpha = 0.98;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 20, 0, Math.PI * 2);
+    ctx.lineWidth = 3.5;
+    ctx.strokeStyle = "rgba(255,255,255,0.95)";
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function undirKey(a, b) { return (a < b) ? (a + "-" + b) : (b + "-" + a); }
   function dirKey(a, b) { return a + ">" + b; }
 
@@ -723,6 +724,9 @@ HTML_TEMPLATE = r"""
     if (staticDirty) renderStaticLayer();
     ctx.drawImage(staticLayer, 0, 0);
 
+    // hover ring (dynamic)
+    drawHoverRing();
+
     drawTrail("cpu", nowMs);
     drawTrail("user", nowMs);
     drawRunner("cpu");
@@ -856,36 +860,50 @@ HTML_TEMPLATE = r"""
     }
   }
 
-  // --- LOGIKA MAGNESU (Smart Hitbox) ---
-  function handleInput(clientX, clientY) {
-    if (gameState.isLocked) return;
-
+  // --- SMART INPUT (mobile friendly) ---
+  function clientToCanvas(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-
     const x = (clientX - rect.left) * scaleX;
     const y = (clientY - rect.top) * scaleY;
+    const scaleAvg = (scaleX + scaleY) * 0.5;
+    return { x, y, scaleAvg };
+  }
 
-    // Szukamy NAJBLIŻSZEGO miasta w zasięgu, a nie pierwszego trafionego
-    let bestCity = null;
+  function pickNearestCity(canvasX, canvasY) {
+    let best = null;
     let minDst = Infinity;
-
     for (const c of gameState.cities) {
-        const dst = Math.hypot(c.x - x, c.y - y);
-        if (dst < minDst) {
-            minDst = dst;
-            bestCity = c;
-        }
+      const d = Math.hypot(c.x - canvasX, c.y - canvasY);
+      if (d < minDst) { minDst = d; best = c; }
     }
+    return { city: best, dist: minDst };
+  }
 
-    // Jeśli najbliższe miasto jest w zasięgu "magnesu", wybierz je
-    if (!bestCity || minDst > HIT_RADIUS) return;
-    const city = bestCity;
+  function updateHover(clientX, clientY) {
+    pointer.lastClientX = clientX;
+    pointer.lastClientY = clientY;
 
+    const { x, y, scaleAvg } = clientToCanvas(clientX, clientY);
+    const { city, dist } = pickNearestCity(x, y);
+
+    const hitRadiusCanvas = HIT_RADIUS_PX * scaleAvg;
+    if (!city || dist > hitRadiusCanvas) {
+      pointer.hoverId = null;
+      return;
+    }
+    pointer.hoverId = city.id;
+  }
+
+  function selectCityId(cityId) {
+    if (gameState.isLocked) return;
     if (isUserRouteClosed()) return;
+    const city = gameState.cities[cityId];
+    if (!city) return;
 
     const path = gameState.userPath;
+
     if (path.length === 0) {
       path.push(city.id);
       gameState.raceStartId = city.id;
@@ -894,17 +912,23 @@ HTML_TEMPLATE = r"""
       markStaticDirty();
       return;
     }
+
     if (path.length > 0 && path[path.length - 1] === city.id) return;
+
     if (path.includes(city.id)) {
       if (city.id === path[0] && path.length === gameState.cities.length) {
         path.push(city.id);
+      } else {
+        return;
       }
     } else {
       path.push(city.id);
     }
+
     updateUserStats();
     setRaceNotReady("Rysuj...");
     markStaticDirty();
+
     if (isUserRouteClosed() && gameState.matrixReady) {
       gameState.userPath = normalizeCycleToStart(gameState.userPath, gameState.raceStartId);
       updateUserStats();
@@ -912,17 +936,40 @@ HTML_TEMPLATE = r"""
     }
   }
 
-  // Mysz
-  canvas.addEventListener('mousedown', e => {
-    handleInput(e.clientX, e.clientY);
-  });
+  // Pointer Events (obsługa mysz + dotyk jednym zestawem)
+  canvas.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch') e.preventDefault();
+    canvas.setPointerCapture(e.pointerId);
+    pointer.active = true;
+    pointer.id = e.pointerId;
+    updateHover(e.clientX, e.clientY);
+  }, { passive: false });
 
-  // Dotyk (Mobile) z preventDefault
-  canvas.addEventListener('touchstart', e => {
-    e.preventDefault(); 
-    const touch = e.touches[0];
-    handleInput(touch.clientX, touch.clientY);
-  }, {passive: false});
+  canvas.addEventListener('pointermove', (e) => {
+    if (!pointer.active || e.pointerId !== pointer.id) return;
+    if (e.pointerType === 'touch') e.preventDefault();
+    updateHover(e.clientX, e.clientY);
+  }, { passive: false });
+
+  canvas.addEventListener('pointerup', (e) => {
+    if (!pointer.active || e.pointerId !== pointer.id) return;
+    if (e.pointerType === 'touch') e.preventDefault();
+
+    // wybór dopiero na puszczeniu
+    if (pointer.hoverId !== null && pointer.hoverId !== undefined) {
+      selectCityId(pointer.hoverId);
+    }
+
+    pointer.active = false;
+    pointer.id = null;
+    pointer.hoverId = null;
+  }, { passive: false });
+
+  canvas.addEventListener('pointercancel', () => {
+    pointer.active = false;
+    pointer.id = null;
+    pointer.hoverId = null;
+  });
 
   function resetRoute() {
     abortPendingSolves();
@@ -1004,7 +1051,6 @@ HTML_TEMPLATE = r"""
 
 @app.route("/")
 def home():
-    # Ten print pokaże się w logach Railway, gdy ktoś wejdzie na stronę
     print("--- KTOŚ ODWIEDZIŁ STRONĘ! ---", flush=True)
     return render_template_string(HTML_TEMPLATE)
 
@@ -1060,6 +1106,7 @@ def generate_map():
         return jsonify({'cities': cities, 'terrains': terrains})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 # ---- AI: ILS (randomized NN) + 2-opt + double-bridge, time-bounded ----
 def route_cost(matrix, route):
@@ -1215,7 +1262,7 @@ def solve_smart_ai():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 if __name__ == '__main__':
-    # lokalnie OK; na Railway i tak odpalisz gunicornem
     port = int(os.getenv("PORT", "5000"))
     app.run(host="0.0.0.0", port=port, debug=True)
