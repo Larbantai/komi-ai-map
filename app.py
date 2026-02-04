@@ -1184,7 +1184,7 @@ HTML_TEMPLATE = r"""
 
 @app.route("/")
 def home():
-    return "Komi AI Ultimate działa 🚀"
+    return render_template_string(HTML_TEMPLATE)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
@@ -1400,3 +1400,4 @@ if __name__ == '__main__':
     # lokalnie OK; na Railway i tak odpalisz gunicornem
     port = int(os.getenv("PORT", "5000"))
     app.run(host="0.0.0.0", port=port, debug=True)
+
