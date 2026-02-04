@@ -11,14 +11,29 @@ HTML_TEMPLATE = r"""
 <html lang="pl">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Komi AI: Ultimate Edition</title>
   <style>
     * { box-sizing: border-box; }
-    body { font-family: 'Segoe UI', sans-serif; background: #1e272e; color: #d2dae2; margin: 0; height: 100vh; display: flex; overflow: hidden; }
+    body { font-family: 'Segoe UI', sans-serif; background: #1e272e; color: #d2dae2; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
     .container { display: flex; width: 100%; height: 100%; }
-    .map-area { flex: 3; background: #000; display: flex; justify-content: center; align-items: center; position: relative; }
-    .sidebar { flex: 1; background: #2f3640; padding: 20px; border-left: 2px solid #485460; overflow-y: auto; min-width: 340px; }
-    canvas { background: #f5f6fa; box-shadow: 0 0 30px rgba(0,0,0,0.5); border-radius: 4px; cursor: crosshair; }
+
+    /* Domyślnie (Desktop) */
+    .map-area { flex: 3; background: #000; display: flex; justify-content: center; align-items: center; position: relative; overflow: hidden; }
+    .sidebar { flex: 1; background: #2f3640; padding: 20px; border-left: 2px solid #485460; overflow-y: auto; min-width: 340px; z-index: 10; }
+
+    canvas { 
+      background: #f5f6fa; 
+      box-shadow: 0 0 30px rgba(0,0,0,0.5); 
+      border-radius: 4px; 
+      cursor: crosshair; 
+      /* Kluczowe dla responsywności: */
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      touch-action: none; /* Blokuje przewijanie strony palcem po mapie */
+    }
 
     h1 { color: #f1c40f; margin: 0 0 15px 0; font-size: 1.6rem; text-align: center; }
     h2 { color: #0fb9b1; font-size: 1.1rem; border-bottom: 1px solid #485460; padding-bottom: 5px; margin-top: 22px; margin-bottom: 10px; }
@@ -51,31 +66,20 @@ HTML_TEMPLATE = r"""
     .icon-btn.dim { opacity: 0.55; }
 
     .pill-btn {
-      width: 100%;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.12);
-      color: #d2dae2;
-      padding: 10px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-weight: 700;
-      margin-top: 8px;
+      width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+      color: #d2dae2; padding: 10px; border-radius: 10px; cursor: pointer; font-weight: 700; margin-top: 8px;
     }
-    .pill-btn:hover { background: rgba(255,255,255,0.10); }
 
     input[type="number"] {
-      width: 100%; padding: 10px; background: #1e272e;
-      border: 1px solid #485460; color: white;
-      border-radius: 4px; font-weight: bold; text-align: center;
+      width: 100%; padding: 10px; background: #1e272e; border: 1px solid #485460; 
+      color: white; border-radius: 4px; font-weight: bold; text-align: center;
     }
 
     button {
-      width: 100%; padding: 12px; margin-top: 10px; border: none;
-      border-radius: 4px; font-weight: bold; cursor: pointer;
-      transition: 0.2s; font-size: 0.9rem;
+      width: 100%; padding: 12px; margin-top: 10px; border: none; border-radius: 4px; 
+      font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 0.9rem;
     }
-    button:hover { filter: brightness(1.1); transform: translateY(-1px); }
-    button:disabled { background: #57606f !important; cursor: not-allowed; opacity: 0.75; transform: none; }
+    button:disabled { background: #57606f !important; cursor: not-allowed; opacity: 0.75; }
 
     .btn-gen { background: #0984e3; color: white; }
     .btn-reset { background: #d63031; color: white; }
@@ -91,8 +95,35 @@ HTML_TEMPLATE = r"""
 
     #loading { display: none; color: #f1c40f; font-weight: bold; text-align: center; margin-top: 10px; animation: pulse 1.5s infinite; }
     @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
+    #error-modal { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #c0392b; color: white; padding: 15px 30px; border-radius: 8px; z-index: 1000; text-align: center; font-weight: bold; }
 
-    #error-modal { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #c0392b; color: white; padding: 15px 30px; border-radius: 8px; z-index: 1000; box-shadow: 0 5px 15px rgba(0,0,0,0.5); text-align: center; font-weight: bold; }
+    /* --- MOBILE STYLES --- */
+    @media (max-width: 900px) {
+      .container { flex-direction: column; }
+      .map-area { 
+        flex: none; 
+        height: 55vh; /* Mapa zajmuje 55% ekranu */
+        width: 100%; 
+        border-bottom: 2px solid #485460;
+      }
+      .sidebar { 
+        flex: 1; 
+        width: 100%; 
+        min-width: 0; 
+        border-left: none; 
+        padding: 15px;
+        box-shadow: 0 -5px 20px rgba(0,0,0,0.3);
+      }
+      h1 { font-size: 1.3rem; margin-bottom: 10px; }
+      .info { display: none; } /* Ukrywamy opis na mobile dla miejsca */
+      .hint { display: none; } /* Ukrywamy hinty na mobile */
+
+      canvas {
+        /* Na mobile canvas musi się zmieścić w viewporcie */
+        width: 100%;
+        height: 100%;
+      }
+    }
   </style>
 </head>
 <body>
@@ -106,73 +137,57 @@ HTML_TEMPLATE = r"""
 
   <div class="sidebar">
     <h1>Komi: Ultimate</h1>
-    <p class="info">Klikaj miasta, narysuj pętlę. Po domknięciu 🧍 i 💻 ruszą w wyścigu (prędkość zależna od terenu).</p>
+    <p class="info">Klikaj miasta, narysuj pętlę. Po domknięciu wyścig rusza!</p>
 
     <div class="legend-container">
-      <div style="font-weight:bold; margin-bottom:5px; color:#fff;">Teren (prędkość):</div>
-      <div class="legend-row" style="justify-content:flex-start;"><div class="l-box bg-fast"></div> Autostrada (x2.0)</div>
-      <div class="legend-row" style="justify-content:flex-start;"><div class="l-box bg-slow"></div> Piasek (x0.5)</div>
-      <div class="legend-row" style="justify-content:flex-start;"><div class="l-box bg-swamp"></div> Bagno (x0.2)</div>
-
-      <div style="font-weight:bold; margin:12px 0 6px 0; color:#fff;">Trasy (kolor / widoczność):</div>
-
-      <div class="legend-row" id="rowUser">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <div class="route-sample" id="sampleUser"></div><span>🧍 Użytkownik</span>
-        </div>
-        <div class="route-actions">
-          <button class="icon-btn" id="btnToggleUser" title="Pokaż/ukryj">👁</button>
-        </div>
+      <div style="font-weight:bold; margin-bottom:5px; color:#fff;">Teren:</div>
+      <div style="display:flex; justify-content: space-between; gap:5px; font-size:0.75rem;">
+         <div style="display:flex;align-items:center;"><div class="l-box bg-fast" style="margin-right:4px;"></div>Szybko</div>
+         <div style="display:flex;align-items:center;"><div class="l-box bg-slow" style="margin-right:4px;"></div>Piasek</div>
+         <div style="display:flex;align-items:center;"><div class="l-box bg-swamp" style="margin-right:4px;"></div>Bagno</div>
       </div>
 
-      <div class="legend-row" id="rowCpu">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <div class="route-sample" id="sampleCpu"></div><span>💻 Komputer</span>
-        </div>
-        <div class="route-actions">
-          <button class="icon-btn" id="btnToggleCpu" title="Pokaż/ukryj">👁</button>
-        </div>
+      <div style="font-weight:bold; margin:12px 0 6px 0; color:#fff;">Widoczność:</div>
+
+      <div style="display:flex; gap:10px;">
+        <button class="pill-btn" id="btnToggleUser" style="margin-top:0; padding:6px; font-size:0.8rem; border-color:#2563eb; color:#2563eb;">🧍 User</button>
+        <button class="pill-btn" id="btnToggleCpu" style="margin-top:0; padding:6px; font-size:0.8rem; border-color:#e84118; color:#e84118;">💻 AI</button>
       </div>
 
-      <button class="pill-btn" id="btnOverlapMode" type="button">Tryb nakładania: User</button>
-
-      <div class="hint">
-        Ukrycie trasy nie zatrzymuje biegu ikonki – po włączeniu wraca w tym samym miejscu.
-      </div>
+      <button class="pill-btn" id="btnOverlapMode" type="button" style="padding:8px; font-size:0.85rem;">Nakładanie: User</button>
     </div>
 
-    <h2>Konfiguracja</h2>
-    <label style="font-size:0.9rem; display:block; margin-bottom:5px;">
-      Liczba miast (zalecane ≤ 60, max 120):
-    </label>
-    <input type="number" id="pointsCount" value="10" min="3" max="120">
-    <button class="btn-gen" onclick="generateMap()">Generuj Mapę</button>
-    <button class="btn-reset" onclick="resetRoute()">Resetuj Trasę</button>
-
-    <h2>Wyniki</h2>
-    <div class="stats-box" style="border-color:#2563eb">
-      Twój wynik
-      <span class="stat-val" id="userTime">0.00 h</span>
-      <span class="sub-stat">Postęp: <span id="userProg">--</span></span>
-      <span class="sub-stat">Macierz: <span id="matrixStatus">--</span></span>
+    <h2 style="margin-top:15px; margin-bottom:5px;">Akcje</h2>
+    <div style="display:flex; gap:5px; align-items:center; margin-bottom:5px;">
+        <input type="number" id="pointsCount" value="10" min="3" max="80" style="flex:1; padding:8px;">
+        <span style="font-size:0.8rem; color:#bdc3c7;">miast</span>
     </div>
-
-    <div class="stats-box" style="border-color:#e84118">
-      Komputer (AI)
-      <span class="stat-val" id="cpuTime">-- h</span>
-      <span class="sub-stat">Postęp: <span id="cpuProg">--</span></span>
-      <span class="sub-stat">Czas heurystyki: <span id="cpuMeta">--</span></span>
-    </div>
-
-    <div id="loading">Python pracuje...</div>
-
-    <h2>Animacja</h2>
     <div class="row-2btn">
-      <button class="btn-anim" id="btnAnimToggle" onclick="toggleAnimation()">⏳ Czekam na trasy...</button>
-      <button class="btn-anim2" id="btnAnimReset" onclick="resetIcons()">↺ Reset ikon</button>
+      <button class="btn-gen" onclick="generateMap()" style="margin-top:0;">Generuj</button>
+      <button class="btn-reset" onclick="resetRoute()" style="margin-top:0;">Reset</button>
     </div>
-    <div class="hint">
-      Reset ikon: wszyscy ruszają od startu (kółeczko) i kończą po 1 okrążeniu w tym samym punkcie.
+
+    <h2 style="margin-top:15px; margin-bottom:5px;">Wyniki</h2>
+    <div style="display:flex; gap:10px;">
+        <div class="stats-box" style="flex:1; border-color:#2563eb; padding:8px; margin:0;">
+          <div style="font-size:0.8rem;">Ty</div>
+          <span class="stat-val" id="userTime" style="font-size:1.1rem;">0.00h</span>
+        </div>
+        <div class="stats-box" style="flex:1; border-color:#e84118; padding:8px; margin:0;">
+          <div style="font-size:0.8rem;">AI</div>
+          <span class="stat-val" id="cpuTime" style="font-size:1.1rem;">--</span>
+        </div>
+    </div>
+    <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:#7f8c8d; margin-top:5px;">
+        <span>Twój postęp: <span id="userProg">--</span></span>
+        <span>AI postęp: <span id="cpuProg">--</span></span>
+    </div>
+
+    <div id="loading">AI liczy...</div>
+
+    <div class="row-2btn" style="margin-top:10px;">
+      <button class="btn-anim" id="btnAnimToggle" onclick="toggleAnimation()">Start</button>
+      <button class="btn-anim2" id="btnAnimReset" onclick="resetIcons()">Reset ikon</button>
     </div>
   </div>
 </div>
@@ -184,32 +199,24 @@ HTML_TEMPLATE = r"""
   const TERRAIN_MODS = { 'FAST': 2.0, 'SLOW': 0.5, 'SWAMP': 0.2 };
   const TERRAIN_COLORS = { 'FAST': 'rgba(46, 204, 113, 0.6)', 'SLOW': 'rgba(241, 196, 15, 0.6)', 'SWAMP': 'rgba(231, 76, 60, 0.6)' };
 
-  // Animation
   const ANIM_ACCEL = 2000;
   const TRAIL_MAX_POINTS = 90;
   const TRAIL_MAX_MS = 1600;
-
-  // Linie: jedna grubość dla wszystkich tras
   const ROUTE_W = 3.2;
-
-  // Dash for opposite-direction overlap segments
   const OPP_DASH = [10, 9];
 
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
 
-  // offscreen static
   const staticLayer = document.createElement('canvas');
   staticLayer.width = canvas.width;
   staticLayer.height = canvas.height;
   const sctx = staticLayer.getContext('2d');
   let staticDirty = true;
 
-  let animationRunning = false; // start stopped until routes computed
+  let animationRunning = false;
   let lastTs = null;
   let progAcc = 0;
-
-  // domyślnie: User
   let overlapMode = "user";
 
   let gameState = {
@@ -218,35 +225,23 @@ HTML_TEMPLATE = r"""
     userPath: [],
     cpuPath: [],
     isLocked: false,
-
     matrix: null,
     matrixReady: false,
     matrixVersion: 0,
-
     show: { user: true, cpu: true },
-
-    // kolory stałe (bez pickerów)
     colors: { user: "#2563eb", cpu: "#e84118" },
-
     costs: { user: null, cpu: null },
-
     dirSign: null,
-
-    // start city for race ring (set only after first click)
     raceStartId: null,
-
     solvingAll: false,
     pending: { aiCtrl: null },
-
     runners: {
       user:  { emoji: "🧍", dist: 0, trail: [], finished: false },
       cpu:   { emoji: "💻", dist: 0, trail: [], finished: false }
     },
-
     routeGeom: { user: null, cpu: null }
   };
 
-  // --- helpers ---
   function setLoading(on, text="Python pracuje...") {
     const el = document.getElementById('loading');
     el.innerText = text;
@@ -267,23 +262,18 @@ HTML_TEMPLATE = r"""
     return n > 0 && p.length === n + 1 && p[0] === p[p.length - 1];
   }
 
-  // --- color utils ---
   function hexToRgb(hex) {
-    const h = (hex || "").trim();
-    const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h);
+    const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     if (!m) return {r:255,g:255,b:255};
     return { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) };
   }
   function rgbaStr({r,g,b}, a=1) { return `rgba(${r}, ${g}, ${b}, ${a})`; }
 
-  // "Multiply" + lekkie podbicie jasności, żeby wspólny fragment był czytelny
   function blendMultiplyVivid(hexA, hexB) {
     const a = hexToRgb(hexA), b = hexToRgb(hexB);
     let r = Math.round((a.r * b.r) / 255);
     let g = Math.round((a.g * b.g) / 255);
     let bb = Math.round((a.b * b.b) / 255);
-
-    // boost: rozjaśnij i zwiększ kontrast, żeby overlap był "wow"
     const boost = (x) => Math.max(0, Math.min(255, Math.round(x * 1.9 + 25)));
     return { r: boost(r), g: boost(g), b: boost(bb) };
   }
@@ -291,80 +281,28 @@ HTML_TEMPLATE = r"""
   function overlapColorRgb() {
     if (overlapMode === "user") return hexToRgb(gameState.colors.user);
     if (overlapMode === "comp") return hexToRgb(gameState.colors.cpu);
-    return blendMultiplyVivid(gameState.colors.user, gameState.colors.cpu); // multiply
-  }
-
-  function visibleCount() {
-    return (gameState.show.user ? 1 : 0) + (gameState.show.cpu ? 1 : 0);
-  }
-
-  function onlyVisibleWhich() {
-    if (gameState.show.user && !gameState.show.cpu) return "user";
-    if (!gameState.show.user && gameState.show.cpu) return "comp";
-    return null;
-  }
-
-  function availableModes() {
-    const cnt = visibleCount();
-    if (cnt === 2) return ["user", "comp", "multiply"];
-    const which = onlyVisibleWhich();
-    if (which === "user") return ["user", "multiply"];
-    if (which === "comp") return ["comp", "multiply"];
-    return ["user", "comp", "multiply"];
-  }
-
-  function ensureOverlapModeValid() {
-    const modes = availableModes();
-    if (!modes.includes(overlapMode)) overlapMode = modes[0];
-  }
-
-  function overlapModeLabel() {
-    const cnt = visibleCount();
-    if (overlapMode === "user") return "User";
-    if (overlapMode === "comp") return "Comp";
-    if (cnt === 1) return "Multiply (wspólna)";
-    return "Multiply";
-  }
-
-  function updateOverlapBtn() {
-    const btn = document.getElementById('btnOverlapMode');
-    if (btn) btn.innerText = "Tryb nakładania: " + overlapModeLabel();
+    return blendMultiplyVivid(gameState.colors.user, gameState.colors.cpu);
   }
 
   function cycleOverlapMode() {
-    ensureOverlapModeValid();
-    const modes = availableModes();
-    const idx = Math.max(0, modes.indexOf(overlapMode));
+    const modes = ["user", "comp", "multiply"];
+    const idx = modes.indexOf(overlapMode);
     overlapMode = modes[(idx + 1) % modes.length];
-    updateOverlapBtn();
-    markStaticDirty();
-  }
-
-  function updateLegendSamples() {
-    document.getElementById('sampleUser').style.background = gameState.colors.user;
-    document.getElementById('sampleCpu').style.background = gameState.colors.cpu;
-
-    // stats border colors
-    document.querySelectorAll('.stats-box')[0].style.borderColor = gameState.colors.user;
-    document.querySelectorAll('.stats-box')[1].style.borderColor = gameState.colors.cpu;
-
-    // dim eye buttons when hidden
-    document.getElementById('btnToggleUser').classList.toggle('dim', !gameState.show.user);
-    document.getElementById('btnToggleCpu').classList.toggle('dim', !gameState.show.cpu);
-
-    ensureOverlapModeValid();
-    updateOverlapBtn();
+    document.getElementById('btnOverlapMode').innerText = "Nakładanie: " + (overlapMode === 'multiply' ? 'Wspólne' : (overlapMode === 'comp' ? 'AI' : 'User'));
     markStaticDirty();
   }
 
   function setShow(key, val) {
     gameState.show[key] = !!val;
-    // hide => keep moving, but restart trail for clarity
     if (!gameState.show[key]) gameState.runners[key].trail = [];
-    updateLegendSamples();
+
+    // UI update
+    const btn = document.getElementById(key === 'user' ? 'btnToggleUser' : 'btnToggleCpu');
+    btn.style.opacity = val ? '1' : '0.4';
+
+    markStaticDirty();
   }
 
-  // --- terrain ---
   function getTerrainAt(x, y) {
     for (let t of gameState.terrains) {
       let inside = false;
@@ -378,15 +316,12 @@ HTML_TEMPLATE = r"""
     return 1.0;
   }
 
-  // symmetric cost via midpoint sampling
   function calculateCost(p1, p2) {
     let dx = p2.x - p1.x, dy = p2.y - p1.y;
     let distPx = Math.hypot(dx, dy);
     let steps = Math.max(1, Math.ceil(distPx / 4));
-
     let stepDist = (distPx * SCALE) / steps;
     let time = 0;
-
     for (let i = 0; i < steps; i++) {
       let t = (i + 0.5) / steps;
       let cx = p1.x + dx * t;
@@ -402,13 +337,11 @@ HTML_TEMPLATE = r"""
     gameState.pending.aiCtrl = null;
   }
 
-  // --- matrix once ---
   async function buildMatrixOnce() {
     const myVersion = ++gameState.matrixVersion;
     gameState.matrixReady = false;
     gameState.matrix = null;
-    document.getElementById('matrixStatus').innerText = "liczę...";
-    setLoading(true, "Liczę macierz kosztów...");
+    setLoading(true, "Liczę mapę...");
 
     const n = gameState.cities.length;
     let matrix = Array(n).fill(null).map(() => Array(n).fill(0));
@@ -424,18 +357,13 @@ HTML_TEMPLATE = r"""
       }
       if (i % 2 === 0) await new Promise(r => setTimeout(r, 0));
     }
-
     if (myVersion !== gameState.matrixVersion) return;
-
     gameState.matrix = matrix;
     gameState.matrixReady = true;
-    document.getElementById('matrixStatus').innerText = "OK";
     setLoading(false);
-
     updateUserStats();
   }
 
-  // --- cycle normalize + direction ---
   function normalizeCycleToStart(path, startId) {
     if (!path || path.length < 2) return path;
     if (path[path.length - 1] !== path[0]) return path;
@@ -489,7 +417,6 @@ HTML_TEMPLATE = r"""
 
     let p = (key === 'user') ? gameState.userPath : gameState.cpuPath;
     p = normalizeCycleToStart(p, startId);
-
     if (key === 'user') gameState.userPath = p;
     if (key === 'cpu') gameState.cpuPath = p;
 
@@ -507,19 +434,10 @@ HTML_TEMPLATE = r"""
         if (key === 'cpu') gameState.cpuPath = p;
       }
     }
-
     gameState.routeGeom[key] = buildRouteGeomFromPath(p);
     gameState.runners[key].dist = 0;
     gameState.runners[key].finished = false;
     gameState.runners[key].trail = [];
-  }
-
-  // --- progress ---
-  function progressPercent(key) {
-    const geom = gameState.routeGeom[key];
-    if (!geom || geom.total <= 0) return null;
-    const d = gameState.runners[key].dist;
-    return Math.max(0, Math.min(100, (d / geom.total) * 100));
   }
 
   function updateProgressUI() {
@@ -528,22 +446,20 @@ HTML_TEMPLATE = r"""
       const geom = gameState.routeGeom[key];
       const cost = gameState.costs[key];
       if (!geom || cost == null) { el.innerText = "--"; return; }
-      if (gameState.runners[key].finished) { el.innerText = "100% 🏁"; return; }
-      const p = progressPercent(key);
-      el.innerText = (p === null) ? "--" : (Math.floor(p).toString() + "%");
+      if (gameState.runners[key].finished) { el.innerText = "100%"; return; }
+      const p = Math.max(0, Math.min(100, (gameState.runners[key].dist / geom.total) * 100));
+      el.innerText = Math.floor(p) + "%";
     };
     set("userProg", "user");
     set("cpuProg", "cpu");
   }
 
-  // --- animation mechanics ---
   function positionAlongRoute(key, distPx) {
     const geom = gameState.routeGeom[key];
     if (!geom) return null;
     let d = Math.max(0, Math.min(distPx, geom.total));
     const pts = geom.pts;
     const seg = geom.seg;
-
     for (let i = 0; i < seg.length; i++) {
       const L = seg[i];
       if (d <= L) {
@@ -575,22 +491,18 @@ HTML_TEMPLATE = r"""
     if (!gameState.show[key]) return;
     const tr = gameState.runners[key].trail;
     if (!tr || tr.length < 2) return;
-
     ctx.save();
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
     ctx.strokeStyle = (key === "user") ? rgbaStr(hexToRgb(gameState.colors.user), 1.0)
                                        : rgbaStr(hexToRgb(gameState.colors.cpu), 1.0);
-
     for (let i = 0; i < tr.length - 1; i++) {
       const a = tr[i], b = tr[i+1];
       const age = nowMs - a.t;
       const alpha = Math.max(0, 1.0 - (age / TRAIL_MAX_MS));
-
-      const w = 3.8 + 6.8 * alpha;   // thick tails
+      const w = 3.8 + 6.8 * alpha;
       ctx.globalAlpha = 0.55 * alpha;
       ctx.lineWidth = w;
-
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
@@ -604,31 +516,25 @@ HTML_TEMPLATE = r"""
     const geom = gameState.routeGeom[key];
     const cost = gameState.costs[key];
     if (!geom || cost == null) return;
-
     const pos = positionAlongRoute(key, gameState.runners[key].dist);
     if (!pos) return;
-
     ctx.save();
-    ctx.font = "22px Segoe UI Emoji, Apple Color Emoji, Noto Color Emoji, sans-serif";
+    ctx.font = "22px Segoe UI Emoji";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-
     ctx.globalAlpha = 0.95;
     ctx.beginPath();
     ctx.arc(pos.x, pos.y, 14, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(255,255,255,0.88)";
     ctx.fill();
-
     ctx.globalAlpha = 1.0;
     ctx.fillText(gameState.runners[key].emoji, pos.x, pos.y + 1);
     ctx.restore();
   }
 
-  // --- drawing helpers ---
   function undirKey(a, b) { return (a < b) ? (a + "-" + b) : (b + "-" + a); }
   function dirKey(a, b) { return a + ">" + b; }
 
-  // overlap: same direction (solid), opposite direction (dashed)
   function buildOverlapSets(userPath, cpuPath) {
     const cpuDir = new Set();
     const cpuUndir = new Set();
@@ -637,29 +543,20 @@ HTML_TEMPLATE = r"""
       cpuDir.add(dirKey(a,b));
       cpuUndir.add(undirKey(a,b));
     }
-
     const same = [];
     const opp = [];
     const oppSet = new Set();
-
     for (let i = 0; i < userPath.length - 1; i++) {
       const a = userPath[i], b = userPath[i+1];
       const u = undirKey(a,b);
       if (!cpuUndir.has(u)) continue;
-
-      if (cpuDir.has(dirKey(a,b))) {
-        same.push([a,b]);
-      } else if (cpuDir.has(dirKey(b,a))) {
-        opp.push([a,b]);
-        oppSet.add(u);
-      } else {
-        same.push([a,b]);
-      }
+      if (cpuDir.has(dirKey(a,b))) { same.push([a,b]); }
+      else if (cpuDir.has(dirKey(b,a))) { opp.push([a,b]); oppSet.add(u); }
+      else { same.push([a,b]); }
     }
     return { same, opp, oppSet };
   }
 
-  // Draw polyline path; optional skipUndirSet to avoid "covering" dashed segments
   function drawFilteredPath(ctx2, path, strokeStyle, width, skipUndirSet=null) {
     if (!path || path.length < 2) return;
     ctx2.save();
@@ -669,34 +566,20 @@ HTML_TEMPLATE = r"""
     ctx2.setLineDash([]);
     ctx2.lineJoin = "round";
     ctx2.lineCap = "round";
-
     ctx2.beginPath();
     let drawing = false;
-
     for (let i = 0; i < path.length - 1; i++) {
       const a = path[i], b = path[i+1];
       const u = undirKey(a,b);
-
       if (skipUndirSet && skipUndirSet.has(u)) {
-        if (drawing) {
-          ctx2.stroke();
-          ctx2.beginPath();
-          drawing = false;
-        }
+        if (drawing) { ctx2.stroke(); ctx2.beginPath(); drawing = false; }
         continue;
       }
-
-      const A = gameState.cities[a];
-      const B = gameState.cities[b];
+      const A = gameState.cities[a], B = gameState.cities[b];
       if (!A || !B) continue;
-
-      if (!drawing) {
-        ctx2.moveTo(A.x, A.y);
-        drawing = true;
-      }
+      if (!drawing) { ctx2.moveTo(A.x, A.y); drawing = true; }
       ctx2.lineTo(B.x, B.y);
     }
-
     if (drawing) ctx2.stroke();
     ctx2.restore();
   }
@@ -710,7 +593,6 @@ HTML_TEMPLATE = r"""
     ctx2.lineJoin = "round";
     ctx2.lineCap = "round";
     ctx2.globalAlpha = 0.95;
-
     for (const [a,b] of segments) {
       const A = gameState.cities[a], B = gameState.cities[b];
       if (!A || !B) continue;
@@ -722,14 +604,11 @@ HTML_TEMPLATE = r"""
     ctx2.restore();
   }
 
-  // --- static rendering ---
   function renderStaticLayer() {
     staticDirty = false;
-
     sctx.fillStyle = '#f5f6fa';
     sctx.fillRect(0, 0, staticLayer.width, staticLayer.height);
 
-    // terrains
     gameState.terrains.forEach(t => {
       sctx.fillStyle = TERRAIN_COLORS[t.type];
       sctx.beginPath();
@@ -739,47 +618,34 @@ HTML_TEMPLATE = r"""
 
     const showUser = !!gameState.show.user;
     const showCpu  = !!gameState.show.cpu;
-
-    // rysuj user OD RAZU (już od 2 punktów), CPU dopiero jak istnieje
     const haveUserLine = gameState.userPath && gameState.userPath.length >= 2;
     const haveCpuLine  = gameState.cpuPath  && gameState.cpuPath.length  >= 2;
-
     const overlapReady = (isUserRouteClosed() && gameState.costs.user != null && gameState.costs.cpu != null && haveCpuLine);
 
     let overlap = null;
     if (overlapReady) overlap = buildOverlapSets(gameState.userPath, gameState.cpuPath);
-
     const bothVisible = showUser && showCpu;
-    const oneVisible = (showUser ? 1 : 0) + (showCpu ? 1 : 0) === 1;
-
     const userStroke = rgbaStr(hexToRgb(gameState.colors.user), 1.0);
     const cpuStroke  = rgbaStr(hexToRgb(gameState.colors.cpu), 1.0);
 
-    // --- ROUTES ---
     if (overlapMode === "multiply") {
       if (overlapReady) {
         const col = overlapColorRgb();
         const stroke = rgbaStr(col, 0.98);
-
         if (bothVisible) {
-          // 2 trasy widoczne -> pełny widok + overlay jak wcześniej
           drawFilteredPath(sctx, gameState.cpuPath,  cpuStroke,  ROUTE_W, overlap.oppSet);
           drawFilteredPath(sctx, gameState.userPath, userStroke, ROUTE_W, overlap.oppSet);
-
           drawSegments(sctx, overlap.same, stroke, ROUTE_W, []);
           drawSegments(sctx, overlap.opp,  stroke, ROUTE_W, OPP_DASH);
         } else {
-          // tylko jedna widoczna -> w multiply pokazuj TYLKO część wspólną
           drawSegments(sctx, overlap.same, stroke, ROUTE_W, []);
           drawSegments(sctx, overlap.opp,  stroke, ROUTE_W, OPP_DASH);
         }
       } else {
-        // brak overlapu (AI jeszcze nie policzyło) -> pokazuj to co jest (żeby nie było "pusto")
         if (showCpu && haveCpuLine)  drawFilteredPath(sctx, gameState.cpuPath,  cpuStroke,  ROUTE_W, null);
         if (showUser && haveUserLine) drawFilteredPath(sctx, gameState.userPath, userStroke, ROUTE_W, null);
       }
     } else {
-      // user/comp
       if (showCpu && haveCpuLine) {
         const skip = (bothVisible && overlapReady) ? overlap.oppSet : null;
         drawFilteredPath(sctx, gameState.cpuPath, cpuStroke, ROUTE_W, skip);
@@ -788,8 +654,6 @@ HTML_TEMPLATE = r"""
         const skip = (bothVisible && overlapReady) ? overlap.oppSet : null;
         drawFilteredPath(sctx, gameState.userPath, userStroke, ROUTE_W, skip);
       }
-
-      // overlay (same+opp) TYLKO gdy obie trasy są widoczne
       if (bothVisible && overlapReady) {
         const col = overlapColorRgb();
         const stroke = rgbaStr(col, 0.98);
@@ -798,21 +662,17 @@ HTML_TEMPLATE = r"""
       }
     }
 
-    // cities as dots (no numbers)
     gameState.cities.forEach(c => {
       sctx.beginPath();
       sctx.arc(c.x, c.y, 7.5, 0, Math.PI*2);
-
       const inPath = gameState.userPath.includes(c.id);
       sctx.fillStyle = inPath ? "#2ecc71" : "#2f3640";
       sctx.fill();
-
       sctx.strokeStyle = "white";
       sctx.lineWidth = 2;
       sctx.stroke();
     });
 
-    // start ring only after first click
     if (gameState.raceStartId !== null && gameState.userPath.length >= 1) {
       const sc = gameState.cities[gameState.raceStartId];
       if (sc) {
@@ -821,22 +681,18 @@ HTML_TEMPLATE = r"""
         sctx.arc(sc.x, sc.y, 16, 0, Math.PI*2);
         sctx.strokeStyle = "rgba(22, 160, 133, 0.95)";
         sctx.lineWidth = 3;
-        sctx.setLineDash([]);
         sctx.stroke();
         sctx.restore();
       }
     }
   }
 
-  // --- animation loop ---
   function tick(ts) {
     if (lastTs === null) lastTs = ts;
     const dt = Math.min(0.05, (ts - lastTs) / 1000);
     lastTs = ts;
-
     const nowMs = performance.now();
 
-    // RUCH ZAWSZE DZIAŁA (nawet gdy trasa ukryta)
     if (animationRunning) {
       ["user","cpu"].forEach(key => {
         const geom = gameState.routeGeom[key];
@@ -865,23 +721,17 @@ HTML_TEMPLATE = r"""
     if (staticDirty) renderStaticLayer();
     ctx.drawImage(staticLayer, 0, 0);
 
-    // tails then runners
     drawTrail("cpu", nowMs);
     drawTrail("user", nowMs);
-
     drawRunner("cpu");
     drawRunner("user");
 
     progAcc += dt;
-    if (progAcc >= 0.10) {
-      progAcc = 0;
-      updateProgressUI();
-    }
-
+    if (progAcc >= 0.10) { progAcc = 0; updateProgressUI(); }
     requestAnimationFrame(tick);
   }
 
-  function setRaceNotReady(text="⏳ Czekam na trasy...") {
+  function setRaceNotReady(text="⏳") {
     animationRunning = false;
     const btn = document.getElementById('btnAnimToggle');
     if (btn) btn.innerText = text;
@@ -896,12 +746,9 @@ HTML_TEMPLATE = r"""
   }
 
   function toggleAnimation() {
-    const ok = (gameState.costs.user != null && gameState.costs.cpu != null);
-    if (!ok) return;
-
+    if (gameState.costs.user == null || gameState.costs.cpu == null) return;
     animationRunning = !animationRunning;
-    const btn = document.getElementById('btnAnimToggle');
-    btn.innerText = animationRunning ? "⏸ Pauza" : "▶ Start";
+    document.getElementById('btnAnimToggle').innerText = animationRunning ? "⏸ Pauza" : "▶ Start";
     lastTs = null;
   }
 
@@ -911,7 +758,6 @@ HTML_TEMPLATE = r"""
       gameState.runners[k].finished = false;
       gameState.runners[k].trail = [];
     });
-
     const nowMs = performance.now();
     ["user","cpu"].forEach(k => {
       if (!gameState.routeGeom[k]) return;
@@ -919,30 +765,26 @@ HTML_TEMPLATE = r"""
       const pos = positionAlongRoute(k, 0);
       if (pos && gameState.show[k]) pushTrailPoint(k, pos.x, pos.y, nowMs);
     });
-
     updateProgressUI();
     lastTs = null;
   }
 
   function updateUserStats() {
     const p = gameState.userPath;
-
-    // pokaż czas nawet dla częściowej trasy
     if (p.length <= 1) {
-      document.getElementById('userTime').innerText = "0.00 h";
+      document.getElementById('userTime').innerText = "0.00h";
       gameState.costs.user = null;
       gameState.routeGeom.user = null;
       gameState.dirSign = null;
       return;
     }
-
     let t = 0;
     if (gameState.matrixReady && gameState.matrix) {
       for (let i = 0; i < p.length - 1; i++) t += gameState.matrix[p[i]][p[i+1]];
     } else {
       for (let i = 0; i < p.length - 1; i++) t += calculateCost(gameState.cities[p[i]], gameState.cities[p[i+1]]);
     }
-    document.getElementById('userTime').innerText = t.toFixed(2) + " h";
+    document.getElementById('userTime').innerText = t.toFixed(2) + "h";
 
     if (isUserRouteClosed() && gameState.matrixReady) {
       gameState.costs.user = t;
@@ -960,16 +802,14 @@ HTML_TEMPLATE = r"""
     if (!gameState.matrixReady || !gameState.matrix) return;
     if (!isUserRouteClosed()) return;
     if (gameState.solvingAll) return;
-    if (gameState.raceStartId === null || gameState.raceStartId === undefined) return;
+    if (gameState.raceStartId === null) return;
 
     gameState.solvingAll = true;
     abortPendingSolves();
+    setRaceNotReady("AI...");
+    setLoading(true, "AI liczy...");
 
-    setRaceNotReady("⏳ Liczę trasę AI...");
-    setLoading(true, "Liczę trasę AI...");
-
-    document.getElementById('cpuTime').innerText = "liczę...";
-    document.getElementById('cpuMeta').innerText = "--";
+    document.getElementById('cpuTime').innerText = "...";
     gameState.cpuPath = [];
     gameState.costs.cpu = null;
     gameState.routeGeom.cpu = null;
@@ -985,22 +825,13 @@ HTML_TEMPLATE = r"""
         body: JSON.stringify({ matrix: gameState.matrix, start: gameState.raceStartId }),
         signal: ctrl.signal
       });
-
-      if (!res.ok) {
-        const txt = await res.text();
-        let msg = txt;
-        try { msg = (JSON.parse(txt).error || txt); } catch(_) {}
-        throw new Error(msg);
-      }
-
+      if (!res.ok) throw new Error("Błąd AI");
       const data = await res.json();
       if (version !== gameState.matrixVersion) return;
 
-      document.getElementById('cpuTime').innerText = data.cost.toFixed(2) + " h";
-      document.getElementById('cpuMeta').innerText = data.meta || "--";
+      document.getElementById('cpuTime').innerText = data.cost.toFixed(2) + "h";
       gameState.cpuPath = data.path;
       gameState.costs.cpu = data.cost;
-
       rebuildRouteGeom('cpu', false);
       resetIcons();
       setLoading(false);
@@ -1008,19 +839,14 @@ HTML_TEMPLATE = r"""
       if (gameState.costs.user != null && gameState.costs.cpu != null) {
         setRaceReadyAndStart();
       } else {
-        setRaceNotReady("⏳ Brak tras...");
+        setRaceNotReady("Brak");
       }
       markStaticDirty();
-
     } catch (e) {
-      if (e.name === "AbortError") return;
-      showError(e.message);
-      document.getElementById('cpuTime').innerText = "-- h";
-      gameState.cpuPath = [];
-      gameState.costs.cpu = null;
-      gameState.routeGeom.cpu = null;
-      setRaceNotReady("⏳ Brak tras...");
-      markStaticDirty();
+      if (e.name !== "AbortError") {
+        showError("Błąd AI");
+        document.getElementById('cpuTime').innerText = "--";
+      }
     } finally {
       gameState.solvingAll = false;
       setLoading(false);
@@ -1028,83 +854,86 @@ HTML_TEMPLATE = r"""
     }
   }
 
-  // --- click: build user path ---
-  canvas.addEventListener('mousedown', e => {
+  function handleInput(clientX, clientY) {
     if (gameState.isLocked) return;
 
     const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    // Skalowanie: przeliczamy współrzędne ekranu na współrzędne canvasu (1000x800)
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
 
-    const city = gameState.cities.find(c => Math.hypot(c.x - x, c.y - y) < 20);
+    const x = (clientX - rect.left) * scaleX;
+    const y = (clientY - rect.top) * scaleY;
+
+    // Zwiększony hitbox dla palców (30px zamiast 20px)
+    const hitDist = 30; 
+    const city = gameState.cities.find(c => Math.hypot(c.x - x, c.y - y) < hitDist);
+
     if (!city) return;
-
-    // if already closed: ignore (no changing start later)
     if (isUserRouteClosed()) return;
 
     const path = gameState.userPath;
-
     if (path.length === 0) {
       path.push(city.id);
-      gameState.raceStartId = city.id; // start fixed = pierwszy klik
+      gameState.raceStartId = city.id;
       updateUserStats();
-      setRaceNotReady();
+      setRaceNotReady("Rysuj...");
       markStaticDirty();
       return;
     }
-
     if (path.length > 0 && path[path.length - 1] === city.id) return;
-
     if (path.includes(city.id)) {
       if (city.id === path[0] && path.length === gameState.cities.length) {
-        path.push(city.id); // close cycle
+        path.push(city.id);
       }
     } else {
       path.push(city.id);
     }
-
     updateUserStats();
-    setRaceNotReady();
+    setRaceNotReady("Rysuj...");
     markStaticDirty();
-
     if (isUserRouteClosed() && gameState.matrixReady) {
       gameState.userPath = normalizeCycleToStart(gameState.userPath, gameState.raceStartId);
       updateUserStats();
       solveAIBackground();
     }
+  }
+
+  // Mysz
+  canvas.addEventListener('mousedown', e => {
+    handleInput(e.clientX, e.clientY);
   });
+
+  // Dotyk (Mobile)
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault(); // Stop scrolling
+    const touch = e.touches[0];
+    handleInput(touch.clientX, touch.clientY);
+  }, {passive: false});
 
   function resetRoute() {
     abortPendingSolves();
     gameState.solvingAll = false;
-
     gameState.userPath = [];
     gameState.cpuPath = [];
     gameState.costs = { user: null, cpu: null };
     gameState.routeGeom = { user: null, cpu: null };
     gameState.dirSign = null;
-
     gameState.raceStartId = null;
-
-    document.getElementById('cpuTime').innerText = "-- h";
-    document.getElementById('userTime').innerText = "0.00 h";
-    document.getElementById('cpuMeta').innerText = "--";
-    document.getElementById('userProg').innerText = "--";
-    document.getElementById('cpuProg').innerText = "--";
-
-    setRaceNotReady();
+    document.getElementById('cpuTime').innerText = "--";
+    document.getElementById('userTime').innerText = "0.00h";
+    setRaceNotReady("Start");
     resetIcons();
     markStaticDirty();
   }
 
   async function generateMap() {
     let n = parseInt(document.getElementById('pointsCount').value, 10);
-    if (!Number.isFinite(n) || n < 3) { showError("Podaj liczbę miast ≥ 3."); return; }
-    if (n > 120) { showError("Max 120 (dla płynności)."); return; }
+    if (!Number.isFinite(n) || n < 3) n = 10;
+    if (n > 120) n = 120;
 
     abortPendingSolves();
     gameState.solvingAll = false;
-
     gameState.cities = [];
     gameState.terrains = [];
     gameState.userPath = [];
@@ -1120,14 +949,9 @@ HTML_TEMPLATE = r"""
       gameState.runners[k].trail = [];
     });
 
-    document.getElementById('userTime').innerText = "0.00 h";
-    document.getElementById('cpuTime').innerText = "-- h";
-    document.getElementById('matrixStatus').innerText = "--";
-    document.getElementById('cpuMeta').innerText = "--";
-    document.getElementById('userProg').innerText = "--";
-    document.getElementById('cpuProg').innerText = "--";
-
-    setRaceNotReady();
+    document.getElementById('userTime').innerText = "0.00h";
+    document.getElementById('cpuTime').innerText = "--";
+    setRaceNotReady("Start");
     resetIcons();
     markStaticDirty();
 
@@ -1137,39 +961,22 @@ HTML_TEMPLATE = r"""
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ n_points: n })
       });
-      if (!res.ok) throw new Error("Błąd serwera");
+      if (!res.ok) throw new Error("Błąd");
       const data = await res.json();
-
       gameState.cities = data.cities;
       gameState.terrains = data.terrains;
-
       markStaticDirty();
       buildMatrixOnce();
-
     } catch(e) {
-      showError("Błąd połączenia: " + e);
+      showError("Błąd sieci");
     }
   }
 
-  // --- UI wiring ---
   function initLegendControls() {
     document.getElementById('btnOverlapMode').addEventListener('click', cycleOverlapMode);
-
-    document.getElementById('btnToggleUser').addEventListener('click', () => {
-      setShow('user', !gameState.show.user);
-      document.getElementById('btnToggleUser').innerText = gameState.show.user ? "👁" : "🚫";
-    });
-    document.getElementById('btnToggleCpu').addEventListener('click', () => {
-      setShow('cpu', !gameState.show.cpu);
-      document.getElementById('btnToggleCpu').innerText = gameState.show.cpu ? "👁" : "🚫";
-    });
-
-    document.getElementById('btnToggleUser').innerText = "👁";
-    document.getElementById('btnToggleCpu').innerText = "👁";
-
-    // start: user
+    document.getElementById('btnToggleUser').addEventListener('click', () => setShow('user', !gameState.show.user));
+    document.getElementById('btnToggleCpu').addEventListener('click', () => setShow('cpu', !gameState.show.cpu));
     overlapMode = "user";
-    updateLegendSamples();
   }
 
   window.onload = () => {
@@ -1182,12 +989,9 @@ HTML_TEMPLATE = r"""
 </html>
 """
 
-@app.route("/")
-def home():
+@app.route('/')
+def index():
     return render_template_string(HTML_TEMPLATE)
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
 
 @app.route('/generate', methods=['POST'])
 def generate_map():
@@ -1400,4 +1204,3 @@ if __name__ == '__main__':
     # lokalnie OK; na Railway i tak odpalisz gunicornem
     port = int(os.getenv("PORT", "5000"))
     app.run(host="0.0.0.0", port=port, debug=True)
-
