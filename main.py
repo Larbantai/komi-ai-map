@@ -3,7 +3,6 @@ import os
 import math
 import random
 import time
-import itertools
 
 app = Flask(__name__)
 
@@ -42,10 +41,10 @@ HTML_TEMPLATE = r"""
     p.info { font-size: 0.85rem; color: #bdc3c7; margin-bottom: 15px; text-align: center; font-style: italic; }
 
     .legend-container { background: #1e272e; padding: 10px; border-radius: 6px; border: 1px solid #485460; font-size: 0.85rem; }
-    
+
     #terrain-legend-items { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-    .legend-item { 
-        display: flex; align-items: center; gap: 6px; font-size: 0.85rem; width: 48%; 
+    .legend-item {
+        display: flex; align-items: center; gap: 6px; font-size: 0.85rem; width: 48%;
         background: rgba(255,255,255,0.05); padding: 4px; border-radius: 4px;
     }
     .l-box { width: 18px; height: 18px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.2); box-shadow: inset 0 0 2px rgba(255,255,255,0.2); }
@@ -56,10 +55,9 @@ HTML_TEMPLATE = r"""
       color: #d2dae2; padding: 10px; border-radius: 10px; cursor: pointer; font-weight: 700; margin-top: 8px;
     }
 
-    /* Inputy i Selecty */
     .control-group { margin-bottom: 10px; }
     .control-label { font-size: 0.8rem; color: #bdc3c7; margin-bottom: 4px; display: block; }
-    
+
     input[type="number"], select {
       width: 100%; padding: 10px; background: #1e272e; border: 1px solid #485460;
       color: white; border-radius: 4px; font-weight: bold; font-family: inherit;
@@ -83,7 +81,7 @@ HTML_TEMPLATE = r"""
 
     .stats-box { background: #1e272e; padding: 12px; border-radius: 6px; margin-bottom: 10px; border-left: 5px solid #bdc3c7; transition: transform 0.2s, background 0.3s; }
     .stat-val { font-size: 1.4rem; font-weight: bold; display: block; margin-top: 3px; }
-    
+
     .winner-glow { background: #16a085; transform: scale(1.02); border-left-color: #fff; }
     .loser-dim { opacity: 0.6; }
 
@@ -126,29 +124,28 @@ HTML_TEMPLATE = r"""
       <div style="font-weight:bold; margin:12px 0 6px 0; color:#fff;">Widoczność:</div>
       <div style="display:flex; gap:10px;">
         <button class="pill-btn" id="btnToggleUser" style="margin-top:0; padding:6px; font-size:0.8rem; border-color:#2563eb; color:#2563eb;">🧍 User</button>
-        <button class="pill-btn" id="btnToggleCpu" style="margin-top:0; padding:6px; font-size:0.8rem; border-color:#be2edd; color:#be2edd;">💻 AI</button>
+        <button class="pill-btn" id="btnToggleCpu" style="margin-top:0; padding:6px; font-size:0.8rem; border-color:#e84118; color:#e84118;">💻 AI</button>
       </div>
 
       <button class="pill-btn" id="btnOverlapMode" type="button" style="padding:8px; font-size:0.85rem;">Nakładanie: User</button>
     </div>
 
     <h2 style="margin-top:15px; margin-bottom:5px;">Akcje</h2>
-    
+
     <div style="display:flex; gap:10px;">
         <div class="control-group" style="flex:1;">
             <label class="control-label">Liczba miast:</label>
-            <input type="number" id="pointsCount" value="10" min="3" max="80" onchange="updateAlgoList()">
+            <input type="number" id="pointsCount" value="10" min="3" max="80">
         </div>
         <div class="control-group" style="flex:1;">
             <label class="control-label">Max czas AI (s):</label>
-            <input type="number" id="aiTimeLimit" value="2.0" min="0.5" max="60.0" step="0.5">
+            <input type="number" id="aiTimeLimit" value="6.0" min="0.5" max="1800.0" step="0.5">
         </div>
     </div>
 
     <div class="control-group">
-        <label class="control-label">Algorytm AI:</label>
-        <select id="algoSelect">
-            </select>
+        <label class="control-label">Algorytm AI (dostępne wg N i czasu):</label>
+        <select id="algoSelect"></select>
     </div>
 
     <div class="row-2btn">
@@ -162,7 +159,7 @@ HTML_TEMPLATE = r"""
           <div style="font-size:0.8rem;">Ty</div>
           <span class="stat-val" id="userTime" style="font-size:1.1rem;">0.00h</span>
         </div>
-        <div class="stats-box" id="boxCpu" style="flex:1; border-color:#be2edd; padding:8px; margin:0;">
+        <div class="stats-box" id="boxCpu" style="flex:1; border-color:#e84118; padding:8px; margin:0;">
           <div style="font-size:0.8rem;">AI</div>
           <span class="stat-val" id="cpuTime" style="font-size:1.1rem;">--</span>
         </div>
@@ -182,10 +179,11 @@ HTML_TEMPLATE = r"""
 </div>
 
 <script>
-  // --- KONFIGURACJA ---
   const SCALE = 0.2;
   const BASE_SPEED = 50;
-  const COLORS = { user: "#2563eb", cpu: "#d012be" }; 
+
+  // Kolory tras/ogonków
+  const COLORS = { user: "#2563eb", cpu: "#e84118" };
 
   const ANIM_ACCEL = 2000;
   const TRAIL_MAX_POINTS = 90;
@@ -208,7 +206,6 @@ HTML_TEMPLATE = r"""
   let progAcc = 0;
   let overlapMode = "user";
 
-  // Cache dla wybranego algorytmu
   let selectedAlgoCache = "ils";
 
   const pointer = {
@@ -221,7 +218,7 @@ HTML_TEMPLATE = r"""
 
   let gameState = {
     cities: [],
-    terrains: [], 
+    terrains: [],
     userPath: [],
     cpuPath: [],
     isLocked: false,
@@ -242,46 +239,6 @@ HTML_TEMPLATE = r"""
     },
     routeGeom: { user: null, cpu: null }
   };
-
-  // --- LOGIKA LISTY ALGORYTMÓW ---
-  const ALGORITHMS = [
-      { id: 'random', name: 'Losowy (Bardzo Słaby)', maxPoints: 9999 },
-      { id: 'nn', name: 'Najbliższy Sąsiad (Słaby)', maxPoints: 9999 },
-      { id: 'nn_2opt', name: 'Szybki 2-Opt (Średni)', maxPoints: 9999 },
-      { id: 'ils', name: 'Komi AI (Dobry - Domyślny)', maxPoints: 9999 },
-      { id: 'brute', name: 'Brute Force (Optymalny)', maxPoints: 10 } // Tylko dla max 10 miast
-  ];
-
-  function updateAlgoList() {
-      const n = parseInt(document.getElementById('pointsCount').value, 10) || 10;
-      const select = document.getElementById('algoSelect');
-      const currentVal = select.value || selectedAlgoCache;
-
-      select.innerHTML = "";
-      
-      let validOptions = [];
-      ALGORITHMS.forEach(algo => {
-          if (n <= algo.maxPoints) {
-              const opt = document.createElement('option');
-              opt.value = algo.id;
-              opt.innerText = algo.name;
-              select.appendChild(opt);
-              validOptions.push(algo.id);
-          }
-      });
-
-      // Przywróć wybór jeśli nadal jest ważny, w przeciwnym razie ustaw domyślny
-      if (validOptions.includes(currentVal)) {
-          select.value = currentVal;
-      } else {
-          select.value = 'ils'; // Fallback
-      }
-  }
-  
-  // Zapisz wybór użytkownika
-  document.getElementById('algoSelect').addEventListener('change', (e) => {
-      selectedAlgoCache = e.target.value;
-  });
 
   function setLoading(on, text="Python pracuje...") {
     const el = document.getElementById('loading');
@@ -310,6 +267,9 @@ HTML_TEMPLATE = r"""
       if (gameState.costs.cpu !== null) {
           document.getElementById('cpuTime').innerText = gameState.costs.cpu.toFixed(2) + "h";
       }
+      if (gameState.costs.user !== null) {
+          document.getElementById('userTime').innerText = gameState.costs.user.toFixed(2) + "h";
+      }
 
       const u = gameState.costs.user;
       const c = gameState.costs.cpu;
@@ -320,9 +280,8 @@ HTML_TEMPLATE = r"""
       boxCpu.classList.remove('winner-glow', 'loser-dim');
 
       if (u !== null && c !== null) {
-          // POPRAWIONA LOGIKA REMISU (Epsilon 0.01h)
           const diff = Math.abs(u - c);
-          
+
           if (diff < 0.01) {
              showResultModal("REMIS! 🤝", "#f39c12");
           } else if (u < c) {
@@ -337,6 +296,14 @@ HTML_TEMPLATE = r"""
       }
   }
 
+  function hideResultsForRace() {
+      gameState.resultsRevealed = false;
+      document.getElementById('cpuTime').innerText = "???";
+      document.getElementById('userTime').innerText = "???";
+      document.getElementById('boxUser').classList.remove('winner-glow', 'loser-dim');
+      document.getElementById('boxCpu').classList.remove('winner-glow', 'loser-dim');
+  }
+
   function markStaticDirty() { staticDirty = true; }
 
   function isUserRouteClosed() {
@@ -346,6 +313,7 @@ HTML_TEMPLATE = r"""
   }
 
   function hexToRgb(hex) {
+    hex = (hex || "").trim();
     const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     if (!m) return {r:255,g:255,b:255};
     return { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) };
@@ -355,7 +323,7 @@ HTML_TEMPLATE = r"""
   function overlapColorRgb() {
     if (overlapMode === "user") return hexToRgb(gameState.colors.user);
     if (overlapMode === "comp") return hexToRgb(gameState.colors.cpu);
-    return {r:0,g:0,b:0}; 
+    return {r:0,g:0,b:0};
   }
 
   function cycleOverlapMode() {
@@ -566,14 +534,14 @@ HTML_TEMPLATE = r"""
     ctx.save();
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
-    ctx.strokeStyle = (key === "user") ? rgbaStr(hexToRgb(gameState.colors.user), 1.0)
-                                       : rgbaStr(hexToRgb(gameState.colors.cpu), 1.0);
+    ctx.strokeStyle = (key === "user") ? gameState.colors.user : gameState.colors.cpu;
+
     for (let i = 0; i < tr.length - 1; i++) {
       const a = tr[i], b = tr[i+1];
       const age = nowMs - a.t;
       const alpha = Math.max(0, 1.0 - (age / TRAIL_MAX_MS));
       const w = 3.8 + 6.8 * alpha;
-      ctx.globalAlpha = 0.55 * alpha;
+      ctx.globalAlpha = 0.60 * alpha;
       ctx.lineWidth = w;
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
@@ -649,7 +617,7 @@ HTML_TEMPLATE = r"""
     if (!path || path.length < 2) return;
     ctx2.save();
     ctx2.strokeStyle = strokeStyle;
-    ctx2.globalAlpha = 0.70;
+    ctx2.globalAlpha = 0.85;
     ctx2.lineWidth = width;
     ctx2.setLineDash([]);
     ctx2.lineJoin = "round";
@@ -698,7 +666,7 @@ HTML_TEMPLATE = r"""
     sctx.fillRect(0, 0, staticLayer.width, staticLayer.height);
 
     gameState.terrains.forEach(t => {
-      sctx.fillStyle = t.color; 
+      sctx.fillStyle = t.color;
       sctx.beginPath();
       t.vertices.forEach((v, i) => i === 0 ? sctx.moveTo(v.x, v.y) : sctx.lineTo(v.x, v.y));
       sctx.fill();
@@ -713,8 +681,9 @@ HTML_TEMPLATE = r"""
     let overlap = null;
     if (overlapReady) overlap = buildOverlapSets(gameState.userPath, gameState.cpuPath);
     const bothVisible = showUser && showCpu;
-    const userStroke = rgbaStr(hexToRgb(gameState.colors.user), 1.0);
-    const cpuStroke  = rgbaStr(hexToRgb(gameState.colors.cpu), 1.0);
+
+    const userStroke = gameState.colors.user;
+    const cpuStroke  = gameState.colors.cpu;
 
     if (overlapMode === "multiply") {
       if (overlapReady) {
@@ -787,7 +756,7 @@ HTML_TEMPLATE = r"""
         if (!geom || cost == null) return;
 
         if (!gameState.runners[key].finished) {
-            bothFinished = false; 
+            bothFinished = false;
             const pos = positionAlongRoute(key, gameState.runners[key].dist);
             if (pos) {
                 const v = speedPxPerSecAtPosition(pos.x, pos.y);
@@ -817,7 +786,6 @@ HTML_TEMPLATE = r"""
     ctx.drawImage(staticLayer, 0, 0);
 
     drawHoverRing();
-
     drawTrail("cpu", nowMs);
     drawTrail("user", nowMs);
     drawRunner("cpu");
@@ -836,6 +804,7 @@ HTML_TEMPLATE = r"""
   }
 
   function setRaceReadyAndStart() {
+    hideResultsForRace();
     const btn = document.getElementById('btnAnimToggle');
     if (btn) btn.innerText = "⏸ Pauza";
     animationRunning = true;
@@ -849,12 +818,16 @@ HTML_TEMPLATE = r"""
     lastTs = null;
   }
 
+  // (2) Reset ikon zawsze od początku + przywraca "▶ Start" nawet po mecie
   function resetIcons() {
+    animationRunning = false;
+
     ["user","cpu"].forEach(k => {
       gameState.runners[k].dist = 0;
       gameState.runners[k].finished = false;
       gameState.runners[k].trail = [];
     });
+
     const nowMs = performance.now();
     ["user","cpu"].forEach(k => {
       if (!gameState.routeGeom[k]) return;
@@ -862,6 +835,13 @@ HTML_TEMPLATE = r"""
       const pos = positionAlongRoute(k, 0);
       if (pos && gameState.show[k]) pushTrailPoint(k, pos.x, pos.y, nowMs);
     });
+
+    // przywróć przycisk startu, jeśli mamy już wyniki/trasy
+    const btn = document.getElementById('btnAnimToggle');
+    if (btn) {
+      btn.innerText = (gameState.costs.user != null && gameState.costs.cpu != null) ? "▶ Start" : "Start";
+    }
+
     updateProgressUI();
     lastTs = null;
   }
@@ -881,7 +861,10 @@ HTML_TEMPLATE = r"""
     } else {
       for (let i = 0; i < p.length - 1; i++) t += calculateCost(gameState.cities[p[i]], gameState.cities[p[i+1]]);
     }
-    document.getElementById('userTime').innerText = t.toFixed(2) + "h";
+
+    if (!isUserRouteClosed()) {
+      document.getElementById('userTime').innerText = t.toFixed(2) + "h";
+    }
 
     if (isUserRouteClosed() && gameState.matrixReady) {
       gameState.costs.user = t;
@@ -907,7 +890,7 @@ HTML_TEMPLATE = r"""
     setRaceNotReady("AI...");
     setLoading(true, "AI liczy...");
 
-    document.getElementById('cpuTime').innerText = "???"; 
+    document.getElementById('cpuTime').innerText = "???";
     document.getElementById('boxUser').classList.remove('winner-glow', 'loser-dim');
     document.getElementById('boxCpu').classList.remove('winner-glow', 'loser-dim');
 
@@ -918,20 +901,19 @@ HTML_TEMPLATE = r"""
     const version = gameState.matrixVersion;
     const ctrl = new AbortController();
     gameState.pending.aiCtrl = ctrl;
-    
-    // Pobierz parametry z UI
+
     const algo = document.getElementById('algoSelect').value || 'ils';
-    const timeLimit = parseFloat(document.getElementById('aiTimeLimit').value) || 2.0;
+    const timeLimitSec = Math.max(0.5, Math.min(1800.0, parseFloat(document.getElementById('aiTimeLimit').value) || 6.0));
 
     try {
       const res = await fetch('/solve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-            matrix: gameState.matrix, 
+        body: JSON.stringify({
+            matrix: gameState.matrix,
             start: gameState.raceStartId,
             algo: algo,
-            time_limit: timeLimit
+            time_limit_sec: timeLimitSec
         }),
         signal: ctrl.signal
       });
@@ -941,7 +923,7 @@ HTML_TEMPLATE = r"""
 
       gameState.cpuPath = data.path;
       gameState.costs.cpu = data.cost;
-      
+
       rebuildRouteGeom('cpu', false);
       resetIcons();
       setLoading(false);
@@ -964,7 +946,6 @@ HTML_TEMPLATE = r"""
     }
   }
 
-  // --- SMART INPUT ---
   function clientToCanvas(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
@@ -1094,7 +1075,6 @@ HTML_TEMPLATE = r"""
     markStaticDirty();
   }
 
-  // --- AKTUALIZACJA LEGENDY (DYNAMICZNE MNOŻNIKI) ---
   function updateLegend(types) {
     const container = document.getElementById('terrain-legend-items');
     container.innerHTML = "";
@@ -1108,13 +1088,63 @@ HTML_TEMPLATE = r"""
     });
   }
 
+  // lista algorytmów z backendu (sekundy)
+  async function updateAlgoList() {
+      const n = parseInt(document.getElementById('pointsCount').value, 10) || 10;
+      const tSec = Math.max(0.5, Math.min(1800.0, parseFloat(document.getElementById('aiTimeLimit').value) || 6.0));
+      const select = document.getElementById('algoSelect');
+      const currentVal = select.value || selectedAlgoCache;
+
+      select.innerHTML = `<option value="ils">Ładuję...</option>`;
+
+      try {
+          const res = await fetch('/algorithms', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ n_points: n, time_limit_sec: tSec })
+          });
+          const data = await res.json();
+          const algos = data.algorithms || [];
+
+          select.innerHTML = "";
+          const valid = [];
+
+          algos.forEach(a => {
+              const opt = document.createElement('option');
+              opt.value = a.id;
+              opt.innerText = a.name;
+              select.appendChild(opt);
+              valid.push(a.id);
+          });
+
+          const def = data.default || "ils";
+          if (valid.includes(currentVal)) select.value = currentVal;
+          else if (valid.includes(def)) select.value = def;
+          else if (valid.length > 0) select.value = valid[0];
+          else select.value = "ils";
+
+          selectedAlgoCache = select.value;
+      } catch (e) {
+          showError("Błąd listy algorytmów");
+          select.innerHTML = `<option value="ils">ILS (fallback)</option>`;
+          select.value = "ils";
+          selectedAlgoCache = "ils";
+      }
+  }
+
+  document.getElementById('algoSelect').addEventListener('change', (e) => {
+      selectedAlgoCache = e.target.value;
+  });
+
+  document.getElementById('pointsCount').addEventListener('change', updateAlgoList);
+  document.getElementById('aiTimeLimit').addEventListener('change', updateAlgoList);
+
   async function generateMap() {
     let n = parseInt(document.getElementById('pointsCount').value, 10);
     if (!Number.isFinite(n) || n < 3) n = 10;
     if (n > 120) n = 120;
-    
-    // Update listy algorytmów przy zmianie liczby punktów
-    updateAlgoList();
+
+    await updateAlgoList();
 
     abortPendingSolves();
     gameState.solvingAll = false;
@@ -1153,7 +1183,7 @@ HTML_TEMPLATE = r"""
       const data = await res.json();
       gameState.cities = data.cities;
       gameState.terrains = data.terrains;
-      
+
       const uniqueTypes = [];
       const seen = new Set();
       data.terrains.forEach(t => {
@@ -1178,8 +1208,9 @@ HTML_TEMPLATE = r"""
     overlapMode = "user";
   }
 
-  window.onload = () => {
+  window.onload = async () => {
     initLegendControls();
+    await updateAlgoList();
     generateMap();
     requestAnimationFrame(tick);
   };
@@ -1188,22 +1219,36 @@ HTML_TEMPLATE = r"""
 </html>
 """
 
-# --- BACKEND ---
+# ---------- BACKEND: tereny (3) ----------
+# Paleta mocno rozróżnialnych kolorów (warm -> cool), alfa wspólna.
+DISTINCT_RGB = [
+    (231, 76, 60),   # red
+    (230, 126, 34),  # orange
+    (241, 196, 15),  # yellow
+    (46, 204, 113),  # green
+    (26, 188, 156),  # teal
+    (52, 152, 219),  # blue
+    (155, 89, 182),  # purple
+    (192, 57, 43),   # dark red (fallback, gdyby kiedyś było >7)
+]
 
-def get_terrain_color(val):
-    alpha = 0.65 
-    if val <= 0.3: return f"rgba(231, 76, 60, {alpha})"
-    if val <= 0.6: return f"rgba(230, 126, 34, {alpha})"
-    if val <= 0.9: return f"rgba(241, 196, 15, {alpha})"
-    if val <= 3.0: return f"rgba(46, 204, 113, {alpha})"
-    if val <= 5.0: return f"rgba(39, 174, 96, {alpha})"
-    if val <= 7.0: return f"rgba(22, 160, 133, {alpha})"
-    return f"rgba(0, 206, 209, {alpha})"
+def rgba(rgb, alpha=0.65):
+    r, g, b = rgb
+    return f"rgba({r}, {g}, {b}, {alpha})"
+
+def assign_distinct_colors(sorted_vals, alpha=0.65):
+    # mapuj po pozycji w posortowanych mnożnikach: wolniej = cieplej, szybciej = chłodniej
+    terrain_defs = []
+    for i, v in enumerate(sorted_vals):
+        rgb = DISTINCT_RGB[i % len(DISTINCT_RGB)]
+        terrain_defs.append({'val': v, 'color': rgba(rgb, alpha)})
+    return terrain_defs
+
 
 @app.route("/")
 def home():
-    print("--- START APP ---", flush=True)
     return render_template_string(HTML_TEMPLATE)
+
 
 @app.route('/generate', methods=['POST'])
 def generate_map():
@@ -1221,18 +1266,17 @@ def generate_map():
         all_possible = slow_pool + fast_pool
 
         num_types = random.randint(3, 5)
-        
+
         chosen_vals = set()
         chosen_vals.add(random.choice(slow_pool))
         chosen_vals.add(random.choice(fast_pool))
-
         while len(chosen_vals) < num_types:
             chosen_vals.add(random.choice(all_possible))
-        
+
         sorted_vals = sorted(list(chosen_vals))
-        terrain_defs = []
-        for v in sorted_vals:
-            terrain_defs.append({'val': v, 'color': get_terrain_color(v)})
+
+        # (3) zamiast progów – zawsze wyraźnie różne kolory
+        terrain_defs = assign_distinct_colors(sorted_vals, alpha=0.65)
 
         terrains = []
         attempts = 0
@@ -1252,15 +1296,15 @@ def generate_map():
                 t_def = random.choice(terrain_defs)
                 verts = []
                 num = random.randint(9, 14)
-                base_angle = random.uniform(0, 2*math.pi)
+                base_angle = random.uniform(0, 2 * math.pi)
                 for i in range(num):
                     a = base_angle + (2 * math.pi * i / num)
-                    r_var = t_radius * random.uniform(0.6, 1.15) 
+                    r_var = t_radius * random.uniform(0.6, 1.15)
                     verts.append({'x': x + math.cos(a) * r_var, 'y': y + math.sin(a) * r_var})
-                
+
                 terrains.append({
-                    'x': x, 'y': y, 'radius': t_radius, 
-                    'val': t_def['val'], 'color': t_def['color'], 
+                    'x': x, 'y': y, 'radius': t_radius,
+                    'val': t_def['val'], 'color': t_def['color'],
                     'vertices': verts
                 })
 
@@ -1286,40 +1330,6 @@ def generate_map():
 def route_cost(matrix, route):
     return sum(matrix[route[i]][route[i + 1]] for i in range(len(route) - 1))
 
-def two_opt_first_improve(matrix, route, max_checks=None):
-    n = len(matrix)
-    checks = 0
-    improved = True
-    while improved:
-        improved = False
-        for i in range(1, n - 1):
-            a, b = route[i - 1], route[i]
-            for j in range(i + 1, n):
-                if j - i == 1: continue
-                c, d = route[j], route[j + 1]
-                d1 = matrix[a][b] + matrix[c][d]
-                d2 = matrix[a][c] + matrix[b][d]
-                if d2 < d1 - 1e-9:
-                    route[i:j + 1] = reversed(route[i:j + 1])
-                    improved = True
-                    break
-                checks += 1
-                if max_checks is not None and checks >= max_checks: return route
-            if improved: break
-    return route
-
-def double_bridge(route):
-    n = len(route) - 1
-    core = route[:-1]
-    start = core[0]
-    if n < 8: return route[:]
-    cuts = sorted(random.sample(range(1, n), 4))
-    a, b, c, d = cuts
-    new_core = core[:a] + core[c:d] + core[b:c] + core[a:b] + core[d:]
-    if new_core[0] != start:
-        idx = new_core.index(start)
-        new_core = new_core[idx:] + new_core[:idx]
-    return new_core + [start]
 
 def randomized_nearest_neighbor(matrix, start=0, k=5):
     n = len(matrix)
@@ -1327,14 +1337,17 @@ def randomized_nearest_neighbor(matrix, start=0, k=5):
     unvisited = set(range(n))
     unvisited.remove(start)
     curr = start
+
     neigh = []
     for i in range(n):
         order = list(range(n))
         order.sort(key=lambda j: matrix[i][j])
         neigh.append(order)
+
     while unvisited:
         candidates = [j for j in neigh[curr] if j in unvisited]
-        if not candidates: nxt = unvisited.pop()
+        if not candidates:
+            nxt = unvisited.pop()
         else:
             take = candidates[:max(1, min(k, len(candidates)))]
             weights = [1.0 / (r + 1) for r in range(len(take))]
@@ -1344,116 +1357,364 @@ def randomized_nearest_neighbor(matrix, start=0, k=5):
             nxt = take[-1]
             for node, w in zip(take, weights):
                 acc += w
-                if x <= acc: nxt = node; break
+                if x <= acc:
+                    nxt = node
+                    break
             unvisited.remove(nxt)
         route.append(nxt)
         curr = nxt
+
     route.append(start)
     return route
 
-# --- DISPATCHER ---
+
+def two_opt_first_improve(matrix, route, max_checks=None):
+    n = len(matrix)
+    checks = 0
+    improved = True
+    while improved:
+        improved = False
+        for i in range(1, n - 1):
+            a, b = route[i - 1], route[i]
+            for j in range(i + 1, n):
+                if j - i == 1:
+                    continue
+                c, d = route[j], route[j + 1]
+                d1 = matrix[a][b] + matrix[c][d]
+                d2 = matrix[a][c] + matrix[b][d]
+                if d2 < d1 - 1e-12:
+                    route[i:j + 1] = reversed(route[i:j + 1])
+                    improved = True
+                    break
+                checks += 1
+                if max_checks is not None and checks >= max_checks:
+                    return route
+            if improved:
+                break
+    return route
+
+
+def double_bridge(route):
+    n = len(route) - 1
+    core = route[:-1]
+    start = core[0]
+    if n < 8:
+        return route[:]
+    cuts = sorted(random.sample(range(1, n), 4))
+    a, b, c, d = cuts
+    new_core = core[:a] + core[c:d] + core[b:c] + core[a:b] + core[d:]
+    if new_core[0] != start:
+        idx = new_core.index(start)
+        new_core = new_core[idx:] + new_core[:idx]
+    return new_core + [start]
+
+
+def ils_solver(matrix, start, time_limit_sec):
+    t0 = time.perf_counter()
+    n = len(matrix)
+
+    max_checks = None if n <= 60 else 20000
+
+    best_route = None
+    best_cost = float('inf')
+
+    while time.perf_counter() - t0 < time_limit_sec:
+        route = randomized_nearest_neighbor(matrix, start=start, k=5)
+        route = two_opt_first_improve(matrix, route, max_checks=max_checks)
+        cost = route_cost(matrix, route)
+        if cost < best_cost:
+            best_cost = cost
+            best_route = route[:]
+
+        inner_steps = 4
+        for _ in range(inner_steps):
+            if time.perf_counter() - t0 >= time_limit_sec:
+                break
+            pert = double_bridge(route)
+            pert = two_opt_first_improve(matrix, pert, max_checks=max_checks)
+            c2 = route_cost(matrix, pert)
+            if c2 < cost or random.random() < 0.08:
+                route, cost = pert, c2
+                if cost < best_cost:
+                    best_cost = cost
+                    best_route = route[:]
+
+    if best_route is None:
+        best_route = randomized_nearest_neighbor(matrix, start=start, k=1)
+        best_cost = route_cost(matrix, best_route)
+    return best_route, best_cost
+
+
+def mst_preorder_solver(matrix, start):
+    n = len(matrix)
+    in_mst = [False] * n
+    key = [float('inf')] * n
+    parent = [-1] * n
+    key[start] = 0.0
+
+    for _ in range(n):
+        u = -1
+        best = float('inf')
+        for i in range(n):
+            if not in_mst[i] and key[i] < best:
+                best = key[i]
+                u = i
+        if u == -1:
+            break
+        in_mst[u] = True
+        for v in range(n):
+            if not in_mst[v]:
+                w = matrix[u][v]
+                if w < key[v]:
+                    key[v] = w
+                    parent[v] = u
+
+    adj = [[] for _ in range(n)]
+    for v in range(n):
+        p = parent[v]
+        if p != -1:
+            adj[p].append(v)
+            adj[v].append(p)
+
+    order = []
+    stack = [start]
+    seen = [False] * n
+    while stack:
+        u = stack.pop()
+        if seen[u]:
+            continue
+        seen[u] = True
+        order.append(u)
+        neigh = adj[u][:]
+        neigh.sort(key=lambda x: matrix[u][x], reverse=True)
+        for v in neigh:
+            if not seen[v]:
+                stack.append(v)
+
+    route = order + [start]
+    return route, route_cost(matrix, route)
+
+
+def held_karp_exact(matrix, start, time_limit_sec):
+    t0 = time.perf_counter()
+    n = len(matrix)
+    if n < 3:
+        return [start, start], 0.0
+
+    nodes = [i for i in range(n) if i != start]
+    m = len(nodes)
+    if n > 20:
+        return None
+
+    dp = [dict() for _ in range(1 << m)]
+    parent = [dict() for _ in range(1 << m)]
+
+    for i, node in enumerate(nodes):
+        mask = 1 << i
+        dp[mask][i] = matrix[start][node]
+        parent[mask][i] = None
+
+    full = (1 << m) - 1
+
+    for mask in range(1 << m):
+        if time.perf_counter() - t0 > time_limit_sec:
+            return None
+        if not dp[mask]:
+            continue
+        for last_i, base_cost in list(dp[mask].items()):
+            last_node = nodes[last_i]
+            rem = full ^ mask
+            r = rem
+            while r:
+                bit = r & -r
+                nxt_i = (bit.bit_length() - 1)
+                nxt_node = nodes[nxt_i]
+                newmask = mask | bit
+                newcost = base_cost + matrix[last_node][nxt_node]
+                old = dp[newmask].get(nxt_i)
+                if old is None or newcost < old:
+                    dp[newmask][nxt_i] = newcost
+                    parent[newmask][nxt_i] = last_i
+                r -= bit
+
+    best_cost = float('inf')
+    best_last = None
+    for last_i, c in dp[full].items():
+        last_node = nodes[last_i]
+        total = c + matrix[last_node][start]
+        if total < best_cost:
+            best_cost = total
+            best_last = last_i
+
+    if best_last is None:
+        return None
+
+    order = []
+    mask = full
+    last = best_last
+    while last is not None:
+        order.append(nodes[last])
+        prev = parent[mask][last]
+        mask ^= (1 << last)
+        last = prev
+    order.reverse()
+    route = [start] + order + [start]
+    return route, best_cost
+
+
+def sa_solver(matrix, start, time_limit_sec):
+    n = len(matrix)
+    if n < 3:
+        return [start, start], 0.0
+
+    t0 = time.perf_counter()
+    end = t0 + time_limit_sec
+
+    route = randomized_nearest_neighbor(matrix, start=start, k=1)
+    route = two_opt_first_improve(matrix, route, max_checks=12000 if n <= 60 else 7000)
+    curr = route[:]
+    curr_cost = route_cost(matrix, curr)
+    best = curr[:]
+    best_cost = curr_cost
+
+    samples = []
+    for _ in range(min(2000, n * 50)):
+        a = random.randrange(n)
+        b = random.randrange(n)
+        if a != b:
+            samples.append(matrix[a][b])
+    avg_w = sum(samples) / max(1, len(samples))
+    T0 = max(1e-9, avg_w * 0.25)
+    T = T0
+
+    it = 0
+    while time.perf_counter() < end:
+        it += 1
+        i = random.randint(1, n - 2)
+        j = random.randint(i + 1, n - 1)
+        if j - i == 1:
+            continue
+
+        a, b = curr[i - 1], curr[i]
+        c, d = curr[j], curr[j + 1]
+        delta = (matrix[a][c] + matrix[b][d]) - (matrix[a][b] + matrix[c][d])
+
+        if delta < 0 or random.random() < math.exp(-delta / max(1e-12, T)):
+            curr[i:j + 1] = reversed(curr[i:j + 1])
+            curr_cost += delta
+            if curr_cost < best_cost:
+                best_cost = curr_cost
+                best = curr[:]
+
+        if it % 2000 == 0:
+            frac = (time.perf_counter() - t0) / max(1e-9, time_limit_sec)
+            T = max(1e-12, T0 * (0.001 ** frac))
+
+    best = two_opt_first_improve(matrix, best, max_checks=25000 if n <= 70 else 12000)
+    best_cost = route_cost(matrix, best)
+    return best, best_cost
+
+
+def hk_cap_by_time(time_limit_sec: float) -> int:
+    if time_limit_sec < 2: return 16
+    if time_limit_sec < 6: return 17
+    if time_limit_sec < 15: return 18
+    if time_limit_sec < 40: return 19
+    return 20
+
+
+@app.route('/algorithms', methods=['POST'])
+def algorithms():
+    try:
+        data = request.json or {}
+        n = int(data.get('n_points', 10))
+        tsec = float(data.get('time_limit_sec', 6.0))
+        tsec = max(0.5, min(1800.0, tsec))
+
+        algos = [
+            {"id": "random", "name": "Losowy (bardzo słaby)"},
+            {"id": "nn", "name": "Najbliższy sąsiad (szybki, słaby)"},
+            {"id": "nn_2opt", "name": "NN + 2-opt (szybki, średni)"},
+            {"id": "mst", "name": "MST preorder (mega szybki, stabilny)"},
+            {"id": "ils", "name": "ILS (bardzo dobry, time-aware)"},
+            {"id": "sa", "name": "SA (time-aware, bardzo dobry)"},
+        ]
+
+        hk_cap = hk_cap_by_time(tsec)
+        if n <= hk_cap:
+            algos.insert(0, {"id": "hk", "name": f"Held–Karp DP (OPTYMALNY, do ~{hk_cap} miast)"})
+
+        default = "hk" if (n <= hk_cap) else "ils"
+        return jsonify({"algorithms": algos, "default": default})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/solve', methods=['POST'])
 def solve_smart_ai():
     try:
         payload = request.json or {}
         matrix = payload.get('matrix')
-        if matrix is None: return jsonify({'error': 'Brak macierzy'}), 400
+        if matrix is None:
+            return jsonify({'error': 'Brak macierzy'}), 400
+
         n = len(matrix)
+        if n < 3:
+            return jsonify({'error': 'Min 3 miasta'}), 400
+
         start = int(payload.get('start', 0))
-        if start < 0 or start >= n: start = 0
-        
+        if start < 0 or start >= n:
+            start = 0
+
         algo = payload.get('algo', 'ils')
-        time_limit = float(payload.get('time_limit', 2.0))
-        # Limit bezpieczeństwa
-        if time_limit > 60.0: time_limit = 60.0
-        if time_limit < 0.1: time_limit = 0.1
+        time_limit_sec = float(payload.get('time_limit_sec', 6.0))
+        time_limit_sec = max(0.5, min(1800.0, time_limit_sec))
 
-        t0 = time.perf_counter()
-        
-        best_route = None
-        best_cost = float('inf')
-        meta = ""
-
-        # --- 1. RANDOM (Losowy) ---
         if algo == 'random':
             nodes = list(range(n))
             nodes.remove(start)
             random.shuffle(nodes)
-            best_route = [start] + nodes + [start]
-            best_cost = route_cost(matrix, best_route)
-            meta = "Random shuffle"
+            route = [start] + nodes + [start]
+            cost = route_cost(matrix, route)
+            return jsonify({'path': route, 'cost': float(cost), 'meta': "Random"})
 
-        # --- 2. NN (Najbliższy Sąsiad - Greedy) ---
-        elif algo == 'nn':
-            # k=1 oznacza czysty Greedy Nearest Neighbor
-            best_route = randomized_nearest_neighbor(matrix, start=start, k=1)
-            best_cost = route_cost(matrix, best_route)
-            meta = "Greedy NN"
+        if algo == 'nn':
+            route = randomized_nearest_neighbor(matrix, start=start, k=1)
+            cost = route_cost(matrix, route)
+            return jsonify({'path': route, 'cost': float(cost), 'meta': "Greedy NN"})
 
-        # --- 3. NN + 2-opt (Lokalne ulepszanie) ---
-        elif algo == 'nn_2opt':
-            best_route = randomized_nearest_neighbor(matrix, start=start, k=1)
-            best_route = two_opt_first_improve(matrix, best_route, max_checks=None)
-            best_cost = route_cost(matrix, best_route)
-            meta = "NN + 2-opt"
+        if algo == 'nn_2opt':
+            route = randomized_nearest_neighbor(matrix, start=start, k=1)
+            route = two_opt_first_improve(matrix, route, max_checks=None)
+            cost = route_cost(matrix, route)
+            return jsonify({'path': route, 'cost': float(cost), 'meta': "NN + 2-opt"})
 
-        # --- 4. ILS (Obecny - Iterated Local Search) ---
-        elif algo == 'ils':
-            # Domyślny algorytm z ograniczeniem czasowym
-            if n <= 60: max_checks = None
-            else: max_checks = 20000
+        if algo == 'mst':
+            route, cost = mst_preorder_solver(matrix, start=start)
+            return jsonify({'path': route, 'cost': float(cost), 'meta': "MST preorder"})
 
-            restarts = 0
-            loops = 0
-            
-            while time.perf_counter() - t0 < time_limit:
-                restarts += 1
-                route = randomized_nearest_neighbor(matrix, start=start, k=5)
-                route = two_opt_first_improve(matrix, route, max_checks=max_checks)
-                cost = route_cost(matrix, route)
+        if algo == 'hk':
+            hk_cap = hk_cap_by_time(time_limit_sec)
+            if n > hk_cap:
+                route, cost = ils_solver(matrix, start=start, time_limit_sec=min(3.0, time_limit_sec))
+                return jsonify({'path': route, 'cost': float(cost), 'meta': f"HK niedostępny (N={n} > ~{hk_cap}) → ILS fallback"})
+            res = held_karp_exact(matrix, start=start, time_limit_sec=time_limit_sec)
+            if res is None:
+                route, cost = ils_solver(matrix, start=start, time_limit_sec=min(3.0, time_limit_sec))
+                return jsonify({'path': route, 'cost': float(cost), 'meta': "HK timeout → ILS fallback"})
+            route, cost = res
+            return jsonify({'path': route, 'cost': float(cost), 'meta': "Held-Karp (Exact)"})
 
-                if cost < best_cost:
-                    best_cost = cost
-                    best_route = route[:]
+        if algo == 'sa':
+            route, cost = sa_solver(matrix, start=start, time_limit_sec=time_limit_sec)
+            return jsonify({'path': route, 'cost': float(cost), 'meta': f"SA ({time_limit_sec:.1f}s)"})
 
-                inner_steps = 4
-                for _ in range(inner_steps):
-                    loops += 1
-                    if time.perf_counter() - t0 >= time_limit: break
-                    pert = double_bridge(route)
-                    pert = two_opt_first_improve(matrix, pert, max_checks=max_checks)
-                    c2 = route_cost(matrix, pert)
-                    if c2 < cost or random.random() < 0.08:
-                        route, cost = pert, c2
-                        if cost < best_cost: best_cost = cost; best_route = route[:]
-            
-            meta = f"ILS ({time_limit:.1f}s)"
+        route, cost = ils_solver(matrix, start=start, time_limit_sec=time_limit_sec)
+        return jsonify({'path': route, 'cost': float(cost), 'meta': f"ILS ({time_limit_sec:.1f}s)"})
 
-        # --- 5. BRUTE FORCE (Tylko dla małych N) ---
-        elif algo == 'brute':
-            if n > 11: # Zabezpieczenie
-                best_route = randomized_nearest_neighbor(matrix, start=start, k=1)
-                best_cost = route_cost(matrix, best_route)
-                meta = "Fallback (N too big)"
-            else:
-                nodes = list(range(n))
-                nodes.remove(start)
-                # Sprawdź wszystkie permutacje
-                for perm in itertools.permutations(nodes):
-                    current_route = [start] + list(perm) + [start]
-                    c = route_cost(matrix, current_route)
-                    if c < best_cost:
-                        best_cost = c
-                        best_route = current_route
-                meta = "Brute Force (Exact)"
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-        # Fallback
-        if best_route is None:
-             best_route = randomized_nearest_neighbor(matrix, start=start, k=1)
-             best_cost = route_cost(matrix, best_route)
-
-        return jsonify({'path': best_route, 'cost': float(best_cost), 'meta': meta})
-    except Exception as e: return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.getenv("PORT", "5000"))
