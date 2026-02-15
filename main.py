@@ -3,6 +3,7 @@ import os
 import math
 import random
 import time
+import itertools
 
 app = Flask(__name__)
 
@@ -12,7 +13,7 @@ HTML_TEMPLATE = r"""
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Komi AI: Ultimate Edition</title>
+  <title>Komi AI: Algorithm Select</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: 'Segoe UI', sans-serif; background: #1e272e; color: #d2dae2; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; touch-action: none; }
@@ -21,7 +22,7 @@ HTML_TEMPLATE = r"""
 
     /* Desktop */
     .map-area { flex: 3; background: #000; display: flex; justify-content: center; align-items: center; position: relative; overflow: hidden; }
-    .sidebar { flex: 1; background: #2f3640; padding: 20px; border-left: 2px solid #485460; overflow-y: auto; min-width: 340px; z-index: 10; }
+    .sidebar { flex: 1; background: #2f3640; padding: 20px; border-left: 2px solid #485460; overflow-y: auto; min-width: 350px; z-index: 10; }
 
     canvas {
       background: #f5f6fa;
@@ -41,20 +42,30 @@ HTML_TEMPLATE = r"""
     p.info { font-size: 0.85rem; color: #bdc3c7; margin-bottom: 15px; text-align: center; font-style: italic; }
 
     .legend-container { background: #1e272e; padding: 10px; border-radius: 6px; border: 1px solid #485460; font-size: 0.85rem; }
-    .l-box { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.2); }
-    .bg-fast { background: rgba(46, 204, 113, 0.8); }
-    .bg-slow { background: rgba(241, 196, 15, 0.8); }
-    .bg-swamp { background: rgba(231, 76, 60, 0.8); }
+    
+    #terrain-legend-items { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .legend-item { 
+        display: flex; align-items: center; gap: 6px; font-size: 0.85rem; width: 48%; 
+        background: rgba(255,255,255,0.05); padding: 4px; border-radius: 4px;
+    }
+    .l-box { width: 18px; height: 18px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.2); box-shadow: inset 0 0 2px rgba(255,255,255,0.2); }
+    .legend-val { font-weight: bold; text-shadow: 1px 1px 1px rgba(0,0,0,0.5); }
 
     .pill-btn {
       width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
       color: #d2dae2; padding: 10px; border-radius: 10px; cursor: pointer; font-weight: 700; margin-top: 8px;
     }
 
-    input[type="number"] {
+    /* Inputy i Selecty */
+    .control-group { margin-bottom: 10px; }
+    .control-label { font-size: 0.8rem; color: #bdc3c7; margin-bottom: 4px; display: block; }
+    
+    input[type="number"], select {
       width: 100%; padding: 10px; background: #1e272e; border: 1px solid #485460;
-      color: white; border-radius: 4px; font-weight: bold; text-align: center;
+      color: white; border-radius: 4px; font-weight: bold; font-family: inherit;
     }
+    select { cursor: pointer; }
+    input[type="number"] { text-align: center; }
 
     button {
       width: 100%; padding: 12px; margin-top: 10px; border: none; border-radius: 4px;
@@ -70,36 +81,26 @@ HTML_TEMPLATE = r"""
     .row-2btn { display: flex; gap: 10px; }
     .row-2btn button { width: 100%; }
 
-    .stats-box { background: #1e272e; padding: 12px; border-radius: 6px; margin-bottom: 10px; border-left: 5px solid #bdc3c7; }
+    .stats-box { background: #1e272e; padding: 12px; border-radius: 6px; margin-bottom: 10px; border-left: 5px solid #bdc3c7; transition: transform 0.2s, background 0.3s; }
     .stat-val { font-size: 1.4rem; font-weight: bold; display: block; margin-top: 3px; }
-    .hint { font-size: 0.78rem; color: #95a5a6; margin-top: 8px; line-height: 1.25rem; }
+    
+    .winner-glow { background: #16a085; transform: scale(1.02); border-left-color: #fff; }
+    .loser-dim { opacity: 0.6; }
 
     #loading { display: none; color: #f1c40f; font-weight: bold; text-align: center; margin-top: 10px; animation: pulse 1.5s infinite; }
     @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
 
-    #error-modal { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #c0392b; color: white; padding: 15px 30px; border-radius: 8px; z-index: 1000; text-align: center; font-weight: bold; }
+    #error-modal, #result-modal { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); padding: 15px 30px; border-radius: 8px; z-index: 1000; text-align: center; font-weight: bold; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+    #error-modal { background: #c0392b; color: white; }
+    #result-modal { background: #27ae60; color: white; top: 40%; font-size: 1.5rem; }
 
     /* MOBILE */
     @media (max-width: 900px) {
       .container { flex-direction: column; }
-      .map-area {
-        flex: none;
-        height: 55vh;
-        width: 100%;
-        border-bottom: 2px solid #485460;
-        padding: 0;
-      }
-      .sidebar {
-        flex: 1;
-        width: 100%;
-        min-width: 0;
-        border-left: none;
-        padding: 15px;
-        box-shadow: 0 -5px 20px rgba(0,0,0,0.3);
-      }
+      .map-area { flex: none; height: 55vh; width: 100%; border-bottom: 2px solid #485460; padding: 0; }
+      .sidebar { flex: 1; width: 100%; min-width: 0; border-left: none; padding: 15px; box-shadow: 0 -5px 20px rgba(0,0,0,0.3); }
       h1 { font-size: 1.3rem; margin-bottom: 10px; }
       .info { display: none; }
-      .hint { display: none; }
       canvas { width: 100%; height: 100%; }
     }
   </style>
@@ -107,6 +108,7 @@ HTML_TEMPLATE = r"""
 <body>
 
 <div id="error-modal">Błąd</div>
+<div id="result-modal">Wynik!</div>
 
 <div class="container">
   <div class="map-area">
@@ -114,31 +116,41 @@ HTML_TEMPLATE = r"""
   </div>
 
   <div class="sidebar">
-    <h1>Komi: Ultimate</h1>
+    <h1>Komi: Algo Select</h1>
     <p class="info">Klikaj miasta, narysuj pętlę. Po domknięciu wyścig rusza!</p>
 
     <div class="legend-container">
-      <div style="font-weight:bold; margin-bottom:5px; color:#fff;">Teren:</div>
-      <div style="display:flex; justify-content: space-between; gap:5px; font-size:0.75rem;">
-         <div style="display:flex;align-items:center; gap:6px;"><div class="l-box bg-fast"></div>Szybko</div>
-         <div style="display:flex;align-items:center; gap:6px;"><div class="l-box bg-slow"></div>Piasek</div>
-         <div style="display:flex;align-items:center; gap:6px;"><div class="l-box bg-swamp"></div>Bagno</div>
-      </div>
+      <div style="font-weight:bold; margin-bottom:8px; color:#fff;">Teren (Mnożnik):</div>
+      <div id="terrain-legend-items"></div>
 
       <div style="font-weight:bold; margin:12px 0 6px 0; color:#fff;">Widoczność:</div>
       <div style="display:flex; gap:10px;">
         <button class="pill-btn" id="btnToggleUser" style="margin-top:0; padding:6px; font-size:0.8rem; border-color:#2563eb; color:#2563eb;">🧍 User</button>
-        <button class="pill-btn" id="btnToggleCpu" style="margin-top:0; padding:6px; font-size:0.8rem; border-color:#e84118; color:#e84118;">💻 AI</button>
+        <button class="pill-btn" id="btnToggleCpu" style="margin-top:0; padding:6px; font-size:0.8rem; border-color:#be2edd; color:#be2edd;">💻 AI</button>
       </div>
 
       <button class="pill-btn" id="btnOverlapMode" type="button" style="padding:8px; font-size:0.85rem;">Nakładanie: User</button>
     </div>
 
     <h2 style="margin-top:15px; margin-bottom:5px;">Akcje</h2>
-    <div style="display:flex; gap:5px; align-items:center; margin-bottom:5px;">
-        <input type="number" id="pointsCount" value="10" min="3" max="80" style="flex:1; padding:8px;">
-        <span style="font-size:0.8rem; color:#bdc3c7;">miast</span>
+    
+    <div style="display:flex; gap:10px;">
+        <div class="control-group" style="flex:1;">
+            <label class="control-label">Liczba miast:</label>
+            <input type="number" id="pointsCount" value="10" min="3" max="80" onchange="updateAlgoList()">
+        </div>
+        <div class="control-group" style="flex:1;">
+            <label class="control-label">Max czas AI (s):</label>
+            <input type="number" id="aiTimeLimit" value="2.0" min="0.5" max="60.0" step="0.5">
+        </div>
     </div>
+
+    <div class="control-group">
+        <label class="control-label">Algorytm AI:</label>
+        <select id="algoSelect">
+            </select>
+    </div>
+
     <div class="row-2btn">
       <button class="btn-gen" onclick="generateMap()" style="margin-top:0;">Generuj</button>
       <button class="btn-reset" onclick="resetRoute()" style="margin-top:0;">Reset</button>
@@ -146,11 +158,11 @@ HTML_TEMPLATE = r"""
 
     <h2 style="margin-top:15px; margin-bottom:5px;">Wyniki</h2>
     <div style="display:flex; gap:10px;">
-        <div class="stats-box" style="flex:1; border-color:#2563eb; padding:8px; margin:0;">
+        <div class="stats-box" id="boxUser" style="flex:1; border-color:#2563eb; padding:8px; margin:0;">
           <div style="font-size:0.8rem;">Ty</div>
           <span class="stat-val" id="userTime" style="font-size:1.1rem;">0.00h</span>
         </div>
-        <div class="stats-box" style="flex:1; border-color:#e84118; padding:8px; margin:0;">
+        <div class="stats-box" id="boxCpu" style="flex:1; border-color:#be2edd; padding:8px; margin:0;">
           <div style="font-size:0.8rem;">AI</div>
           <span class="stat-val" id="cpuTime" style="font-size:1.1rem;">--</span>
         </div>
@@ -173,16 +185,13 @@ HTML_TEMPLATE = r"""
   // --- KONFIGURACJA ---
   const SCALE = 0.2;
   const BASE_SPEED = 50;
-  const TERRAIN_MODS = { 'FAST': 2.0, 'SLOW': 0.5, 'SWAMP': 0.2 };
-  const TERRAIN_COLORS = { 'FAST': 'rgba(46, 204, 113, 0.6)', 'SLOW': 'rgba(241, 196, 15, 0.6)', 'SWAMP': 'rgba(231, 76, 60, 0.6)' };
+  const COLORS = { user: "#2563eb", cpu: "#d012be" }; 
 
   const ANIM_ACCEL = 2000;
   const TRAIL_MAX_POINTS = 90;
   const TRAIL_MAX_MS = 1600;
   const ROUTE_W = 3.2;
   const OPP_DASH = [10, 9];
-
-  // HITBOX w PIKSELACH EKRANU (działa super na mobile)
   const HIT_RADIUS_PX = 44;
 
   const canvas = document.getElementById('gameCanvas');
@@ -199,7 +208,9 @@ HTML_TEMPLATE = r"""
   let progAcc = 0;
   let overlapMode = "user";
 
-  // Stan pointera (mysz/dotyk)
+  // Cache dla wybranego algorytmu
+  let selectedAlgoCache = "ils";
+
   const pointer = {
     active: false,
     id: null,
@@ -210,7 +221,7 @@ HTML_TEMPLATE = r"""
 
   let gameState = {
     cities: [],
-    terrains: [],
+    terrains: [], 
     userPath: [],
     cpuPath: [],
     isLocked: false,
@@ -218,11 +229,12 @@ HTML_TEMPLATE = r"""
     matrixReady: false,
     matrixVersion: 0,
     show: { user: true, cpu: true },
-    colors: { user: "#2563eb", cpu: "#e84118" },
+    colors: COLORS,
     costs: { user: null, cpu: null },
     dirSign: null,
     raceStartId: null,
     solvingAll: false,
+    resultsRevealed: false,
     pending: { aiCtrl: null },
     runners: {
       user:  { emoji: "🧍", dist: 0, trail: [], finished: false },
@@ -230,6 +242,46 @@ HTML_TEMPLATE = r"""
     },
     routeGeom: { user: null, cpu: null }
   };
+
+  // --- LOGIKA LISTY ALGORYTMÓW ---
+  const ALGORITHMS = [
+      { id: 'random', name: 'Losowy (Bardzo Słaby)', maxPoints: 9999 },
+      { id: 'nn', name: 'Najbliższy Sąsiad (Słaby)', maxPoints: 9999 },
+      { id: 'nn_2opt', name: 'Szybki 2-Opt (Średni)', maxPoints: 9999 },
+      { id: 'ils', name: 'Komi AI (Dobry - Domyślny)', maxPoints: 9999 },
+      { id: 'brute', name: 'Brute Force (Optymalny)', maxPoints: 10 } // Tylko dla max 10 miast
+  ];
+
+  function updateAlgoList() {
+      const n = parseInt(document.getElementById('pointsCount').value, 10) || 10;
+      const select = document.getElementById('algoSelect');
+      const currentVal = select.value || selectedAlgoCache;
+
+      select.innerHTML = "";
+      
+      let validOptions = [];
+      ALGORITHMS.forEach(algo => {
+          if (n <= algo.maxPoints) {
+              const opt = document.createElement('option');
+              opt.value = algo.id;
+              opt.innerText = algo.name;
+              select.appendChild(opt);
+              validOptions.push(algo.id);
+          }
+      });
+
+      // Przywróć wybór jeśli nadal jest ważny, w przeciwnym razie ustaw domyślny
+      if (validOptions.includes(currentVal)) {
+          select.value = currentVal;
+      } else {
+          select.value = 'ils'; // Fallback
+      }
+  }
+  
+  // Zapisz wybór użytkownika
+  document.getElementById('algoSelect').addEventListener('change', (e) => {
+      selectedAlgoCache = e.target.value;
+  });
 
   function setLoading(on, text="Python pracuje...") {
     const el = document.getElementById('loading');
@@ -241,6 +293,48 @@ HTML_TEMPLATE = r"""
     const el = document.getElementById('error-modal');
     el.innerText = msg; el.style.display = 'block';
     setTimeout(() => el.style.display = 'none', 2600);
+  }
+
+  function showResultModal(text, color) {
+    const el = document.getElementById('result-modal');
+    el.innerText = text;
+    el.style.backgroundColor = color;
+    el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 3500);
+  }
+
+  function revealResults() {
+      if (gameState.resultsRevealed) return;
+      gameState.resultsRevealed = true;
+
+      if (gameState.costs.cpu !== null) {
+          document.getElementById('cpuTime').innerText = gameState.costs.cpu.toFixed(2) + "h";
+      }
+
+      const u = gameState.costs.user;
+      const c = gameState.costs.cpu;
+      const boxUser = document.getElementById('boxUser');
+      const boxCpu = document.getElementById('boxCpu');
+
+      boxUser.classList.remove('winner-glow', 'loser-dim');
+      boxCpu.classList.remove('winner-glow', 'loser-dim');
+
+      if (u !== null && c !== null) {
+          // POPRAWIONA LOGIKA REMISU (Epsilon 0.01h)
+          const diff = Math.abs(u - c);
+          
+          if (diff < 0.01) {
+             showResultModal("REMIS! 🤝", "#f39c12");
+          } else if (u < c) {
+              showResultModal("WYGRANA! 🎉", "#27ae60");
+              boxUser.classList.add('winner-glow');
+              boxCpu.classList.add('loser-dim');
+          } else {
+              showResultModal("PRZEGRANA... 💀", "#c0392b");
+              boxUser.classList.add('loser-dim');
+              boxCpu.classList.add('winner-glow');
+          }
+      }
   }
 
   function markStaticDirty() { staticDirty = true; }
@@ -258,19 +352,10 @@ HTML_TEMPLATE = r"""
   }
   function rgbaStr({r,g,b}, a=1) { return `rgba(${r}, ${g}, ${b}, ${a})`; }
 
-  function blendMultiplyVivid(hexA, hexB) {
-    const a = hexToRgb(hexA), b = hexToRgb(hexB);
-    let r = Math.round((a.r * b.r) / 255);
-    let g = Math.round((a.g * b.g) / 255);
-    let bb = Math.round((a.b * b.b) / 255);
-    const boost = (x) => Math.max(0, Math.min(255, Math.round(x * 1.9 + 25)));
-    return { r: boost(r), g: boost(g), b: boost(bb) };
-  }
-
   function overlapColorRgb() {
     if (overlapMode === "user") return hexToRgb(gameState.colors.user);
     if (overlapMode === "comp") return hexToRgb(gameState.colors.cpu);
-    return blendMultiplyVivid(gameState.colors.user, gameState.colors.cpu);
+    return {r:0,g:0,b:0}; 
   }
 
   function cycleOverlapMode() {
@@ -298,7 +383,7 @@ HTML_TEMPLATE = r"""
         let xi = vs[i].x, yi = vs[i].y, xj = vs[j].x, yj = vs[j].y;
         if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
       }
-      if (inside) return TERRAIN_MODS[t.type];
+      if (inside) return t.val;
     }
     return 1.0;
   }
@@ -464,7 +549,7 @@ HTML_TEMPLATE = r"""
     const mod = getTerrainAt(x, y);
     const pxPerHour = (BASE_SPEED * mod) / SCALE;
     const pxPerSec = (pxPerHour / 3600) * ANIM_ACCEL;
-    return Math.max(25, Math.min(pxPerSec, 420));
+    return Math.max(20, Math.min(pxPerSec, 800));
   }
 
   function pushTrailPoint(key, x, y, nowMs) {
@@ -613,7 +698,7 @@ HTML_TEMPLATE = r"""
     sctx.fillRect(0, 0, staticLayer.width, staticLayer.height);
 
     gameState.terrains.forEach(t => {
-      sctx.fillStyle = TERRAIN_COLORS[t.type];
+      sctx.fillStyle = t.color; 
       sctx.beginPath();
       t.vertices.forEach((v, i) => i === 0 ? sctx.moveTo(v.x, v.y) : sctx.lineTo(v.x, v.y));
       sctx.fill();
@@ -633,16 +718,14 @@ HTML_TEMPLATE = r"""
 
     if (overlapMode === "multiply") {
       if (overlapReady) {
-        const col = overlapColorRgb();
-        const stroke = rgbaStr(col, 0.98);
         if (bothVisible) {
           drawFilteredPath(sctx, gameState.cpuPath,  cpuStroke,  ROUTE_W, overlap.oppSet);
           drawFilteredPath(sctx, gameState.userPath, userStroke, ROUTE_W, overlap.oppSet);
-          drawSegments(sctx, overlap.same, stroke, ROUTE_W, []);
-          drawSegments(sctx, overlap.opp,  stroke, ROUTE_W, OPP_DASH);
+          drawSegments(sctx, overlap.same, "#000000", ROUTE_W + 1, []);
+          drawSegments(sctx, overlap.opp,  "#000000", ROUTE_W + 1, OPP_DASH);
         } else {
-          drawSegments(sctx, overlap.same, stroke, ROUTE_W, []);
-          drawSegments(sctx, overlap.opp,  stroke, ROUTE_W, OPP_DASH);
+          drawSegments(sctx, overlap.same, "#000000", ROUTE_W + 1, []);
+          drawSegments(sctx, overlap.opp,  "#000000", ROUTE_W + 1, OPP_DASH);
         }
       } else {
         if (showCpu && haveCpuLine)  drawFilteredPath(sctx, gameState.cpuPath,  cpuStroke,  ROUTE_W, null);
@@ -697,34 +780,42 @@ HTML_TEMPLATE = r"""
     const nowMs = performance.now();
 
     if (animationRunning) {
+      let bothFinished = true;
       ["user","cpu"].forEach(key => {
         const geom = gameState.routeGeom[key];
         const cost = gameState.costs[key];
         if (!geom || cost == null) return;
-        if (gameState.runners[key].finished) return;
 
-        const pos = positionAlongRoute(key, gameState.runners[key].dist);
-        if (!pos) return;
+        if (!gameState.runners[key].finished) {
+            bothFinished = false; 
+            const pos = positionAlongRoute(key, gameState.runners[key].dist);
+            if (pos) {
+                const v = speedPxPerSecAtPosition(pos.x, pos.y);
+                gameState.runners[key].dist += v * dt;
 
-        const v = speedPxPerSecAtPosition(pos.x, pos.y);
-        gameState.runners[key].dist += v * dt;
-
-        if (gameState.runners[key].dist >= geom.total) {
-          gameState.runners[key].dist = geom.total;
-          gameState.runners[key].finished = true;
-          const endPos = positionAlongRoute(key, geom.total);
-          if (endPos && gameState.show[key]) pushTrailPoint(key, endPos.x, endPos.y, nowMs);
-        } else {
-          const pos2 = positionAlongRoute(key, gameState.runners[key].dist);
-          if (pos2 && gameState.show[key]) pushTrailPoint(key, pos2.x, pos2.y, nowMs);
+                if (gameState.runners[key].dist >= geom.total) {
+                    gameState.runners[key].dist = geom.total;
+                    gameState.runners[key].finished = true;
+                    const endPos = positionAlongRoute(key, geom.total);
+                    if (endPos && gameState.show[key]) pushTrailPoint(key, endPos.x, endPos.y, nowMs);
+                } else {
+                    const pos2 = positionAlongRoute(key, gameState.runners[key].dist);
+                    if (pos2 && gameState.show[key]) pushTrailPoint(key, pos2.x, pos2.y, nowMs);
+                }
+            }
         }
       });
+
+      if (bothFinished) {
+          animationRunning = false;
+          document.getElementById('btnAnimToggle').innerText = "Koniec";
+          revealResults();
+      }
     }
 
     if (staticDirty) renderStaticLayer();
     ctx.drawImage(staticLayer, 0, 0);
 
-    // hover ring (dynamic)
     drawHoverRing();
 
     drawTrail("cpu", nowMs);
@@ -811,11 +902,15 @@ HTML_TEMPLATE = r"""
     if (gameState.raceStartId === null) return;
 
     gameState.solvingAll = true;
+    gameState.resultsRevealed = false;
     abortPendingSolves();
     setRaceNotReady("AI...");
     setLoading(true, "AI liczy...");
 
-    document.getElementById('cpuTime').innerText = "...";
+    document.getElementById('cpuTime').innerText = "???"; 
+    document.getElementById('boxUser').classList.remove('winner-glow', 'loser-dim');
+    document.getElementById('boxCpu').classList.remove('winner-glow', 'loser-dim');
+
     gameState.cpuPath = [];
     gameState.costs.cpu = null;
     gameState.routeGeom.cpu = null;
@@ -823,21 +918,30 @@ HTML_TEMPLATE = r"""
     const version = gameState.matrixVersion;
     const ctrl = new AbortController();
     gameState.pending.aiCtrl = ctrl;
+    
+    // Pobierz parametry z UI
+    const algo = document.getElementById('algoSelect').value || 'ils';
+    const timeLimit = parseFloat(document.getElementById('aiTimeLimit').value) || 2.0;
 
     try {
       const res = await fetch('/solve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matrix: gameState.matrix, start: gameState.raceStartId }),
+        body: JSON.stringify({ 
+            matrix: gameState.matrix, 
+            start: gameState.raceStartId,
+            algo: algo,
+            time_limit: timeLimit
+        }),
         signal: ctrl.signal
       });
       if (!res.ok) throw new Error("Błąd AI");
       const data = await res.json();
       if (version !== gameState.matrixVersion) return;
 
-      document.getElementById('cpuTime').innerText = data.cost.toFixed(2) + "h";
       gameState.cpuPath = data.path;
       gameState.costs.cpu = data.cost;
+      
       rebuildRouteGeom('cpu', false);
       resetIcons();
       setLoading(false);
@@ -860,7 +964,7 @@ HTML_TEMPLATE = r"""
     }
   }
 
-  // --- SMART INPUT (mobile friendly) ---
+  // --- SMART INPUT ---
   function clientToCanvas(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
@@ -936,7 +1040,6 @@ HTML_TEMPLATE = r"""
     }
   }
 
-  // Pointer Events (obsługa mysz + dotyk jednym zestawem)
   canvas.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'touch') e.preventDefault();
     canvas.setPointerCapture(e.pointerId);
@@ -955,7 +1058,6 @@ HTML_TEMPLATE = r"""
     if (!pointer.active || e.pointerId !== pointer.id) return;
     if (e.pointerType === 'touch') e.preventDefault();
 
-    // wybór dopiero na puszczeniu
     if (pointer.hoverId !== null && pointer.hoverId !== undefined) {
       selectCityId(pointer.hoverId);
     }
@@ -980,17 +1082,39 @@ HTML_TEMPLATE = r"""
     gameState.routeGeom = { user: null, cpu: null };
     gameState.dirSign = null;
     gameState.raceStartId = null;
+    gameState.resultsRevealed = false;
+
     document.getElementById('cpuTime').innerText = "--";
     document.getElementById('userTime').innerText = "0.00h";
+    document.getElementById('boxUser').classList.remove('winner-glow', 'loser-dim');
+    document.getElementById('boxCpu').classList.remove('winner-glow', 'loser-dim');
+
     setRaceNotReady("Start");
     resetIcons();
     markStaticDirty();
+  }
+
+  // --- AKTUALIZACJA LEGENDY (DYNAMICZNE MNOŻNIKI) ---
+  function updateLegend(types) {
+    const container = document.getElementById('terrain-legend-items');
+    container.innerHTML = "";
+    const sorted = [...types].sort((a,b) => a.val - b.val);
+    sorted.forEach(t => {
+       const div = document.createElement('div');
+       div.className = "legend-item";
+       const txt = "x" + (Number.isInteger(t.val) ? t.val + ".0" : t.val);
+       div.innerHTML = `<div class="l-box" style="background:${t.color}"></div><span class="legend-val">${txt}</span>`;
+       container.appendChild(div);
+    });
   }
 
   async function generateMap() {
     let n = parseInt(document.getElementById('pointsCount').value, 10);
     if (!Number.isFinite(n) || n < 3) n = 10;
     if (n > 120) n = 120;
+    
+    // Update listy algorytmów przy zmianie liczby punktów
+    updateAlgoList();
 
     abortPendingSolves();
     gameState.solvingAll = false;
@@ -1002,6 +1126,7 @@ HTML_TEMPLATE = r"""
     gameState.routeGeom = { user: null, cpu: null };
     gameState.dirSign = null;
     gameState.raceStartId = null;
+    gameState.resultsRevealed = false;
 
     ["user","cpu"].forEach(k => {
       gameState.runners[k].dist = 0;
@@ -1011,6 +1136,9 @@ HTML_TEMPLATE = r"""
 
     document.getElementById('userTime').innerText = "0.00h";
     document.getElementById('cpuTime').innerText = "--";
+    document.getElementById('boxUser').classList.remove('winner-glow', 'loser-dim');
+    document.getElementById('boxCpu').classList.remove('winner-glow', 'loser-dim');
+
     setRaceNotReady("Start");
     resetIcons();
     markStaticDirty();
@@ -1025,6 +1153,17 @@ HTML_TEMPLATE = r"""
       const data = await res.json();
       gameState.cities = data.cities;
       gameState.terrains = data.terrains;
+      
+      const uniqueTypes = [];
+      const seen = new Set();
+      data.terrains.forEach(t => {
+         if(!seen.has(t.val)) {
+            seen.add(t.val);
+            uniqueTypes.push({ val: t.val, color: t.color });
+         }
+      });
+      updateLegend(uniqueTypes);
+
       markStaticDirty();
       buildMatrixOnce();
     } catch(e) {
@@ -1049,9 +1188,21 @@ HTML_TEMPLATE = r"""
 </html>
 """
 
+# --- BACKEND ---
+
+def get_terrain_color(val):
+    alpha = 0.65 
+    if val <= 0.3: return f"rgba(231, 76, 60, {alpha})"
+    if val <= 0.6: return f"rgba(230, 126, 34, {alpha})"
+    if val <= 0.9: return f"rgba(241, 196, 15, {alpha})"
+    if val <= 3.0: return f"rgba(46, 204, 113, {alpha})"
+    if val <= 5.0: return f"rgba(39, 174, 96, {alpha})"
+    if val <= 7.0: return f"rgba(22, 160, 133, {alpha})"
+    return f"rgba(0, 206, 209, {alpha})"
+
 @app.route("/")
 def home():
-    print("--- KTOŚ ODWIEDZIŁ STRONĘ! ---", flush=True)
+    print("--- START APP ---", flush=True)
     return render_template_string(HTML_TEMPLATE)
 
 @app.route('/generate', methods=['POST'])
@@ -1060,55 +1211,78 @@ def generate_map():
         data = request.json or {}
         n = int(data.get('n_points', 10))
 
-        if n < 3:
-            return jsonify({'error': 'Min 3 miasta.'}), 400
-        if n > 120:
-            return jsonify({'error': 'Limit backend 120.'}), 400
+        if n < 3: return jsonify({'error': 'Min 3 miasta.'}), 400
+        if n > 120: return jsonify({'error': 'Limit backend 120.'}), 400
 
         width, height = 1000, 800
 
+        slow_pool = [round(x * 0.1, 1) for x in range(1, 10)]
+        fast_pool = [float(x) for x in range(2, 11)]
+        all_possible = slow_pool + fast_pool
+
+        num_types = random.randint(3, 5)
+        
+        chosen_vals = set()
+        chosen_vals.add(random.choice(slow_pool))
+        chosen_vals.add(random.choice(fast_pool))
+
+        while len(chosen_vals) < num_types:
+            chosen_vals.add(random.choice(all_possible))
+        
+        sorted_vals = sorted(list(chosen_vals))
+        terrain_defs = []
+        for v in sorted_vals:
+            terrain_defs.append({'val': v, 'color': get_terrain_color(v)})
+
         terrains = []
         attempts = 0
-        while len(terrains) < 8 and attempts < 400:
+        while len(terrains) < 9 and attempts < 500:
             attempts += 1
-            t_radius = random.uniform(60, 100)
-            x = random.uniform(t_radius + 20, width - t_radius - 20)
-            y = random.uniform(t_radius + 20, height - t_radius - 20)
+            t_radius = random.uniform(50, 120)
+            x = random.uniform(t_radius + 10, width - t_radius - 10)
+            y = random.uniform(t_radius + 10, height - t_radius - 10)
 
             overlap = False
             for t in terrains:
-                if math.hypot(t['x'] - x, t['y'] - y) < (t['radius'] + t_radius + 50):
+                if math.hypot(t['x'] - x, t['y'] - y) < (t['radius'] + t_radius + 20):
                     overlap = True
                     break
 
             if not overlap:
-                t_type = random.choice(['FAST', 'SLOW', 'SWAMP'])
+                t_def = random.choice(terrain_defs)
                 verts = []
-                num = random.randint(8, 12)
+                num = random.randint(9, 14)
+                base_angle = random.uniform(0, 2*math.pi)
                 for i in range(num):
-                    a = 2 * math.pi * i / num
-                    r = t_radius * random.uniform(0.7, 1.0)
-                    verts.append({'x': x + math.cos(a) * r, 'y': y + math.sin(a) * r})
-                terrains.append({'x': x, 'y': y, 'radius': t_radius, 'type': t_type, 'vertices': verts})
+                    a = base_angle + (2 * math.pi * i / num)
+                    r_var = t_radius * random.uniform(0.6, 1.15) 
+                    verts.append({'x': x + math.cos(a) * r_var, 'y': y + math.sin(a) * r_var})
+                
+                terrains.append({
+                    'x': x, 'y': y, 'radius': t_radius, 
+                    'val': t_def['val'], 'color': t_def['color'], 
+                    'vertices': verts
+                })
 
         cities = []
         attempts = 0
-        max_attempts = 15000 if n > 80 else 6000 if n > 50 else 2500
+        max_attempts = 15000 if n > 80 else 6000 if n > 50 else 3000
         while len(cities) < n and attempts < max_attempts:
             attempts += 1
-            cx, cy = random.uniform(50, width - 50), random.uniform(50, height - 50)
-            if not any(math.hypot(c['x'] - cx, c['y'] - cy) < 60 for c in cities):
+            cx, cy = random.uniform(40, width - 40), random.uniform(40, height - 40)
+            if not any(math.hypot(c['x'] - cx, c['y'] - cy) < 55 for c in cities):
                 cities.append({'id': len(cities), 'x': cx, 'y': cy})
 
         if len(cities) < n:
-            return jsonify({'error': f'Nie udało się rozmieścić {n} miast z odstępem 60px. Spróbuj mniejszej liczby.'}), 400
+            return jsonify({'error': f'Nie udało się rozmieścić {n} miast. Spróbuj mniejszej liczby.'}), 400
 
         return jsonify({'cities': cities, 'terrains': terrains})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
-# ---- AI: ILS (randomized NN) + 2-opt + double-bridge, time-bounded ----
+# ---- SOLVERS ----
+
 def route_cost(matrix, route):
     return sum(matrix[route[i]][route[i + 1]] for i in range(len(route) - 1))
 
@@ -1121,8 +1295,7 @@ def two_opt_first_improve(matrix, route, max_checks=None):
         for i in range(1, n - 1):
             a, b = route[i - 1], route[i]
             for j in range(i + 1, n):
-                if j - i == 1:
-                    continue
+                if j - i == 1: continue
                 c, d = route[j], route[j + 1]
                 d1 = matrix[a][b] + matrix[c][d]
                 d2 = matrix[a][c] + matrix[b][d]
@@ -1131,18 +1304,15 @@ def two_opt_first_improve(matrix, route, max_checks=None):
                     improved = True
                     break
                 checks += 1
-                if max_checks is not None and checks >= max_checks:
-                    return route
-            if improved:
-                break
+                if max_checks is not None and checks >= max_checks: return route
+            if improved: break
     return route
 
 def double_bridge(route):
     n = len(route) - 1
     core = route[:-1]
     start = core[0]
-    if n < 8:
-        return route[:]
+    if n < 8: return route[:]
     cuts = sorted(random.sample(range(1, n), 4))
     a, b, c, d = cuts
     new_core = core[:a] + core[c:d] + core[b:c] + core[a:b] + core[d:]
@@ -1157,17 +1327,14 @@ def randomized_nearest_neighbor(matrix, start=0, k=5):
     unvisited = set(range(n))
     unvisited.remove(start)
     curr = start
-
     neigh = []
     for i in range(n):
         order = list(range(n))
         order.sort(key=lambda j: matrix[i][j])
         neigh.append(order)
-
     while unvisited:
         candidates = [j for j in neigh[curr] if j in unvisited]
-        if not candidates:
-            nxt = unvisited.pop()
+        if not candidates: nxt = unvisited.pop()
         else:
             take = candidates[:max(1, min(k, len(candidates)))]
             weights = [1.0 / (r + 1) for r in range(len(take))]
@@ -1177,91 +1344,116 @@ def randomized_nearest_neighbor(matrix, start=0, k=5):
             nxt = take[-1]
             for node, w in zip(take, weights):
                 acc += w
-                if x <= acc:
-                    nxt = node
-                    break
+                if x <= acc: nxt = node; break
             unvisited.remove(nxt)
         route.append(nxt)
         curr = nxt
-
     route.append(start)
     return route
 
+# --- DISPATCHER ---
 @app.route('/solve', methods=['POST'])
 def solve_smart_ai():
     try:
         payload = request.json or {}
         matrix = payload.get('matrix')
-        if matrix is None:
-            return jsonify({'error': 'Brak macierzy'}), 400
-
+        if matrix is None: return jsonify({'error': 'Brak macierzy'}), 400
         n = len(matrix)
-        if n < 3:
-            return jsonify({'error': 'Min 3 miasta'}), 400
-
         start = int(payload.get('start', 0))
-        if start < 0 or start >= n:
-            start = 0
-
-        if n <= 30:
-            time_limit = 1.2
-        elif n <= 60:
-            time_limit = 1.8
-        elif n <= 90:
-            time_limit = 2.2
-        else:
-            time_limit = 2.6
+        if start < 0 or start >= n: start = 0
+        
+        algo = payload.get('algo', 'ils')
+        time_limit = float(payload.get('time_limit', 2.0))
+        # Limit bezpieczeństwa
+        if time_limit > 60.0: time_limit = 60.0
+        if time_limit < 0.1: time_limit = 0.1
 
         t0 = time.perf_counter()
-
-        if n <= 60:
-            max_checks = None
-        elif n <= 90:
-            max_checks = 25000
-        else:
-            max_checks = 20000
-
+        
         best_route = None
         best_cost = float('inf')
+        meta = ""
 
-        restarts = 0
-        loops = 0
-
-        while time.perf_counter() - t0 < time_limit:
-            restarts += 1
-            route = randomized_nearest_neighbor(matrix, start=start, k=6 if n <= 60 else 5)
-            route = two_opt_first_improve(matrix, route, max_checks=max_checks)
-            cost = route_cost(matrix, route)
-
-            if cost < best_cost:
-                best_cost = cost
-                best_route = route[:]
-
-            inner_steps = 6 if n <= 60 else 4
-            for _ in range(inner_steps):
-                loops += 1
-                if time.perf_counter() - t0 >= time_limit:
-                    break
-                pert = double_bridge(route)
-                pert = two_opt_first_improve(matrix, pert, max_checks=max_checks)
-                c2 = route_cost(matrix, pert)
-
-                if c2 < cost or random.random() < 0.08:
-                    route, cost = pert, c2
-                    if cost < best_cost:
-                        best_cost = cost
-                        best_route = route[:]
-
-        if best_route is None:
-            best_route = randomized_nearest_neighbor(matrix, start=start, k=5)
-            best_route = two_opt_first_improve(matrix, best_route, max_checks=max_checks)
+        # --- 1. RANDOM (Losowy) ---
+        if algo == 'random':
+            nodes = list(range(n))
+            nodes.remove(start)
+            random.shuffle(nodes)
+            best_route = [start] + nodes + [start]
             best_cost = route_cost(matrix, best_route)
+            meta = "Random shuffle"
 
-        meta = f"{time_limit:.1f}s | restarty: {restarts} | kroki: {loops}"
+        # --- 2. NN (Najbliższy Sąsiad - Greedy) ---
+        elif algo == 'nn':
+            # k=1 oznacza czysty Greedy Nearest Neighbor
+            best_route = randomized_nearest_neighbor(matrix, start=start, k=1)
+            best_cost = route_cost(matrix, best_route)
+            meta = "Greedy NN"
+
+        # --- 3. NN + 2-opt (Lokalne ulepszanie) ---
+        elif algo == 'nn_2opt':
+            best_route = randomized_nearest_neighbor(matrix, start=start, k=1)
+            best_route = two_opt_first_improve(matrix, best_route, max_checks=None)
+            best_cost = route_cost(matrix, best_route)
+            meta = "NN + 2-opt"
+
+        # --- 4. ILS (Obecny - Iterated Local Search) ---
+        elif algo == 'ils':
+            # Domyślny algorytm z ograniczeniem czasowym
+            if n <= 60: max_checks = None
+            else: max_checks = 20000
+
+            restarts = 0
+            loops = 0
+            
+            while time.perf_counter() - t0 < time_limit:
+                restarts += 1
+                route = randomized_nearest_neighbor(matrix, start=start, k=5)
+                route = two_opt_first_improve(matrix, route, max_checks=max_checks)
+                cost = route_cost(matrix, route)
+
+                if cost < best_cost:
+                    best_cost = cost
+                    best_route = route[:]
+
+                inner_steps = 4
+                for _ in range(inner_steps):
+                    loops += 1
+                    if time.perf_counter() - t0 >= time_limit: break
+                    pert = double_bridge(route)
+                    pert = two_opt_first_improve(matrix, pert, max_checks=max_checks)
+                    c2 = route_cost(matrix, pert)
+                    if c2 < cost or random.random() < 0.08:
+                        route, cost = pert, c2
+                        if cost < best_cost: best_cost = cost; best_route = route[:]
+            
+            meta = f"ILS ({time_limit:.1f}s)"
+
+        # --- 5. BRUTE FORCE (Tylko dla małych N) ---
+        elif algo == 'brute':
+            if n > 11: # Zabezpieczenie
+                best_route = randomized_nearest_neighbor(matrix, start=start, k=1)
+                best_cost = route_cost(matrix, best_route)
+                meta = "Fallback (N too big)"
+            else:
+                nodes = list(range(n))
+                nodes.remove(start)
+                # Sprawdź wszystkie permutacje
+                for perm in itertools.permutations(nodes):
+                    current_route = [start] + list(perm) + [start]
+                    c = route_cost(matrix, current_route)
+                    if c < best_cost:
+                        best_cost = c
+                        best_route = current_route
+                meta = "Brute Force (Exact)"
+
+        # Fallback
+        if best_route is None:
+             best_route = randomized_nearest_neighbor(matrix, start=start, k=1)
+             best_cost = route_cost(matrix, best_route)
+
         return jsonify({'path': best_route, 'cost': float(best_cost), 'meta': meta})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
+    except Exception as e: return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.getenv("PORT", "5000"))
